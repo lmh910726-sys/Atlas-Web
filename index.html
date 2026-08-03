@@ -267,6 +267,39 @@
 
   .inline-edit-input{width:100%;background:rgba(124,111,240,0.08);border:1px solid var(--violet);border-radius:8px;
     padding:4px 8px;font-size:inherit;}
+
+  /* ---------- v5 additions ---------- */
+  .live-badge{display:inline-flex;align-items:center;gap:4px;font-size:9.5px;padding:2px 7px;border-radius:99px;font-weight:600;letter-spacing:.03em;}
+  .live-dot{width:5px;height:5px;border-radius:99px;background:var(--mint);}
+  @keyframes pulse-dot{0%,100%{opacity:1;}50%{opacity:.35;}}
+  .live-dot.pulsing{animation:pulse-dot 1.8s ease-in-out infinite;}
+
+  .quote-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:12px 0;padding:12px;border-radius:14px;background:rgba(255,255,255,.02);}
+  .quote-cell{text-align:center;}
+  .quote-cell .ql{font-size:9.5px;color:var(--muted);}
+  .quote-cell .qv{font-size:12px;font-weight:600;margin-top:2px;}
+
+  .search-wrap{position:relative;}
+  .search-dropdown{position:absolute;top:100%;left:0;right:0;margin-top:4px;background:#111318;border:1px solid var(--panel-border);
+    border-radius:12px;overflow:hidden;z-index:20;display:none;max-height:220px;overflow-y:auto;box-shadow:0 12px 32px rgba(0,0,0,.5);}
+  .etf-search-item{display:block;width:100%;text-align:left;padding:10px 14px;font-size:12.5px;color:var(--text2);}
+  .etf-search-item:hover{background:rgba(255,255,255,.05);color:var(--text);}
+
+  .alert-row{display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-top:1px solid rgba(255,255,255,.05);}
+  .alert-row:first-child{border-top:none;}
+  .alert-icon{width:28px;height:28px;border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+
+  .analyzer-metric{padding:12px;border-radius:14px;background:rgba(255,255,255,.02);}
+  .analyzer-metric .am-label{font-size:10.5px;color:var(--muted);}
+  .analyzer-metric .am-value{font-size:15px;font-weight:600;margin-top:3px;}
+  .status-pill{display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border-radius:99px;font-size:11.5px;font-weight:600;}
+
+  .range-switch{display:flex;gap:4px;flex-wrap:wrap;}
+  .range-switch button{padding:5px 11px;border-radius:8px;font-size:11.5px;color:var(--muted);background:rgba(255,255,255,.03);}
+  .range-switch button.active{background:var(--violet-soft);color:var(--violet);}
+
+  .history-row{display:grid;grid-template-columns:1fr repeat(6,0.8fr) 1.4fr;gap:8px;padding:10px 4px;align-items:center;font-size:11.5px;border-top:1px solid rgba(255,255,255,.05);}
+  .history-row.head{color:var(--muted);font-size:10px;text-transform:uppercase;border-top:none;border-bottom:1px solid var(--panel-border);padding-bottom:10px;}
 </style>
 </head>
 <body>
@@ -279,7 +312,7 @@
 /* Atlas V3 — Personal Investment Operating System (standalone)        */
 /* Multi-account · Rebalancing · Retirement · Market (mock)            */
 /* ================================================================== */
-const STORAGE_KEY = 'atlas-state-v4';
+const STORAGE_KEY = 'atlas-state-v5';
 
 const COLORS = {
   bg:'#08090C', violet:'#7C6FF0', violetSoft:'rgba(124,111,240,0.16)',
@@ -292,6 +325,11 @@ const PALETTE = ['#7C6FF0','#E8B44C','#34D399','#60A5FA','#F472B6','#F87171','#3
 
 const MANAGERS = ['TIME','TIGER','ACE','KODEX','SOL','HANARO'];
 const CATEGORIES = ['S&P500','Nasdaq100','Bond','Gold','Dividend','REIT'];
+const CATEGORY_LABEL = { 'S&P500':'미국S&P500', 'Nasdaq100':'미국나스닥100', 'Bond':'종합채권', 'Gold':'골드', 'Dividend':'미국배당다우존스', 'REIT':'미국리츠' };
+const CATEGORY_BENCHMARK = { 'S&P500':'S&P 500 Index', 'Nasdaq100':'Nasdaq-100 Index', 'Bond':'KAP 한국종합채권지수', 'Gold':'LBMA Gold Price', 'Dividend':'Dow Jones U.S. Dividend 100', 'REIT':'FTSE Nareit All REITs' };
+const CATEGORY_DIVIDEND = { 'S&P500':false, 'Nasdaq100':false, 'Bond':true, 'Gold':false, 'Dividend':true, 'REIT':true };
+// Flat catalog of "known products" used for ETF search/autocomplete (manager × category).
+const ETF_CATALOG = MANAGERS.flatMap(m => CATEGORIES.map(c => ({ manager:m, category:c, name:`${m} ${CATEGORY_LABEL[c]}` })));
 
 const NAV_GROUPS = [
   { label:'개요', items:[
@@ -312,6 +350,7 @@ const NAV_GROUPS = [
   { label:'기록 · 시장', items:[
     { id:'journal', label:'Journal', icon:'book-open' },
     { id:'market', label:'Market', icon:'activity' },
+    { id:'history', label:'History', icon:'history' },
   ]},
   { label:'', items:[
     { id:'settings', label:'Settings', icon:'settings' },
@@ -340,28 +379,137 @@ function mockMetric(seed, min, max, decimals){
 }
 
 /* ================================================================== */
-/* Provider layer — mock implementations today, real APIs later.       */
-/* Keeping this seam makes it a one-file swap when KIS/OpenAI/Claude   */
-/* API keys are available; nothing else in the app needs to change.    */
+/* Cache + de-dup layer (#13, #18)                                     */
+/* ================================================================== */
+const CACHE_TTL_MS = 5*60*1000;
+const _cache = new Map();
+const _inflight = new Map();
+async function cachedCall(key, fn){
+  const now = Date.now();
+  const hit = _cache.get(key);
+  if(hit && (now-hit.t) < CACHE_TTL_MS) return hit.v;
+  if(_inflight.has(key)) return _inflight.get(key);
+  const p = (async()=>{
+    let v;
+    try{ v = await fn(); } finally { _inflight.delete(key); }
+    _cache.set(key, { v, t:Date.now() });
+    return v;
+  })();
+  _inflight.set(key, p);
+  return p;
+}
+
+/* ================================================================== */
+/* Provider layer — swappable market-data sources (#1, #11, #12)       */
+/* Every provider implements: getSnapshot(), getQuote(etf), getHistory(etf, range).*/
+/* Swapping state.settings.api.provider is enough to change data source system-wide;*/
+/* nothing else in the app reads a provider directly except through activeProvider().*/
 /* ================================================================== */
 const AccountProvider = {
   list(){ return state.accounts; },
   get(id){ return state.accounts.find(a=>a.id===id); },
   updateCash(id, val){ state.accounts = state.accounts.map(a=>a.id===id?{...a,cash:Number(val)}:a); }
 };
-const MarketProvider = {
-  // Mock snapshot. Replace with a real market-data API call (returns the same shape).
-  getSnapshot(){
-    return [
-      { id:'sp500', label:'S&P 500', value:'5,847.32', change:'+0.42%', up:true },
-      { id:'nasdaq', label:'Nasdaq 100', value:'20,912.15', change:'-0.18%', up:false },
-      { id:'vix', label:'VIX', value:'14.2', change:'-2.1%', up:false },
-      { id:'ust10y', label:'미국 10년채', value:'4.18%', change:'+0.03%p', up:true },
-      { id:'dxy', label:'Dollar Index', value:'103.4', change:'+0.11%', up:true },
-      { id:'feargreed', label:'Fear & Greed', value:'58 (Neutral)', change:'', up:null },
+
+const RANGE_DAYS = { '1D':1, '1W':7, '1M':30, '3M':90, '6M':182, '1Y':365 };
+
+const MockMarketProvider = {
+  name:'Mock',
+  async getSnapshot(){
+    const bucket = Math.floor(Date.now()/(5*60*1000));
+    const idx = [
+      ['sp500','S&P 500', 5800, 6100], ['nasdaq','Nasdaq 100', 20500, 21400], ['dow','Dow Jones', 40500, 42200],
+      ['russell','Russell 2000', 2150, 2320], ['vix','VIX', 11, 22], ['ust10y','미국 10년채', 3.9, 4.6],
+      ['dxy','Dollar Index', 101, 106], ['feargreed','Fear & Greed', 15, 85],
     ];
+    return idx.map(([id,label,min,max])=>{
+      const seed = hashStr(id+':'+bucket);
+      const value = mockMetric(seed, min, max, id==='ust10y'?2:1);
+      const change = mockMetric(seed+1, -2.4, 2.4, 2);
+      const up = change >= 0;
+      let display = value.toLocaleString('ko-KR');
+      if(id==='ust10y') display = value+'%';
+      if(id==='feargreed') display = Math.round(value) + (value>=55?' (Greed)':value<=45?' (Fear)':' (Neutral)');
+      return { id, label, value:display, change:(up?'+':'')+change+'%', up };
+    });
+  },
+  async getQuote(etf){
+    const bucket = Math.floor(Date.now()/(5*60*1000));
+    const seed = hashStr(etf.id+':'+bucket);
+    const anchor = etf.basePrice || etf.currentPrice || 10000;
+    const changePct = mockMetric(seed+1, -2.8, 2.8, 2);
+    const price = Math.round(anchor * (1 + changePct/100));
+    const prevClose = Math.round(anchor);
+    const changeAmt = price - prevClose;
+    const open = Math.round(anchor * (1 + mockMetric(seed+2,-1,1,2)/100));
+    const high = Math.max(price, open) + Math.round(anchor*mockMetric(seed+3,0,0.8,2)/100);
+    const low = Math.min(price, open) - Math.round(anchor*mockMetric(seed+4,0,0.8,2)/100);
+    const volume = Math.round(mockMetric(seed+5, 3, 80, 1)*10000);
+    return { price, changePct, changeAmt, open, high, low, volume, updatedAt: Date.now() };
+  },
+  async getHistory(etf, range){
+    const days = RANGE_DAYS[range] || 30;
+    const points = Math.min(days, 180);
+    const anchor = etf.basePrice || etf.currentPrice || 10000;
+    const out = [];
+    let v = anchor * mockMetric(hashStr(etf.id+'start'), 0.85, 0.95, 4);
+    for(let i=points; i>=0; i--){
+      const seed = hashStr(etf.id+':day:'+i);
+      const drift = mockMetric(seed, -1.3, 1.5, 3)/100;
+      v = v * (1+drift);
+      const d = new Date(); d.setDate(d.getDate()-i);
+      out.push({ date: d.toISOString().slice(0,10), close: Math.round(v) });
+    }
+    // Anchor the final point to the current live-ish price so the chart lines up with the card.
+    if(out.length) out[out.length-1].close = Math.round(anchor);
+    return out;
   }
 };
+
+// KIS / Yahoo / Finnhub: real fetch attempts against a user-configured proxy.
+// Direct browser calls to KIS or Yahoo will fail from a static page (CORS + secret
+// keys can't live in client code) — these expect state.settings.api.baseUrl to point
+// at a small proxy you run yourself that forwards to the real API and returns the
+// same JSON shape as MockMarketProvider. If baseUrl is empty or the call fails for
+// any reason, we fall back to Mock silently (#12) so the UI never shows an error.
+function makeProxyProvider(name){
+  return {
+    name,
+    async getSnapshot(){
+      try{
+        const { baseUrl } = state.settings.api;
+        if(!baseUrl) throw new Error('no baseUrl configured');
+        const res = await fetch(baseUrl.replace(/\/$/,'') + '/snapshot');
+        if(!res.ok) throw new Error('bad response');
+        return await res.json();
+      }catch(e){ return MockMarketProvider.getSnapshot(); }
+    },
+    async getQuote(etf){
+      try{
+        const { baseUrl } = state.settings.api;
+        if(!baseUrl) throw new Error('no baseUrl configured');
+        const res = await fetch(baseUrl.replace(/\/$/,'') + '/quote?symbol=' + encodeURIComponent(etf.name));
+        if(!res.ok) throw new Error('bad response');
+        return await res.json();
+      }catch(e){ return MockMarketProvider.getQuote(etf); }
+    },
+    async getHistory(etf, range){
+      try{
+        const { baseUrl } = state.settings.api;
+        if(!baseUrl) throw new Error('no baseUrl configured');
+        const res = await fetch(baseUrl.replace(/\/$/,'') + '/history?symbol=' + encodeURIComponent(etf.name) + '&range=' + range);
+        if(!res.ok) throw new Error('bad response');
+        return await res.json();
+      }catch(e){ return MockMarketProvider.getHistory(etf, range); }
+    }
+  };
+}
+const KISProvider = makeProxyProvider('KIS');
+const YahooProvider = makeProxyProvider('Yahoo');
+const FinnhubProvider = makeProxyProvider('Finnhub');
+const PROVIDERS = { mock:MockMarketProvider, kis:KISProvider, yahoo:YahooProvider, finnhub:FinnhubProvider };
+function activeProvider(){ return PROVIDERS[state.settings.api.provider] || MockMarketProvider; }
+
 const ETFProvider = {
   // Mock issuer comparison, deterministic per manager+category (not random API calls).
   compare(category){
@@ -369,19 +517,55 @@ const ETFProvider = {
       const seed = hashStr(manager+category);
       return {
         manager,
-        name:`${manager} ${category}`,
+        name:`${manager} ${CATEGORY_LABEL[category]||category}`,
         return1y: mockMetric(seed+1, 12, 22, 1),
         expenseRatio: mockMetric(seed+2, 0.03, 0.35, 2),
         aum: Math.round(mockMetric(seed+3, 300, 6000, 0)),
         tracking: mockMetric(seed+4, 0.02, 0.15, 2),
         volume: Math.round(mockMetric(seed+5, 5, 60, 1)),
+        dividend: CATEGORY_DIVIDEND[category] ? '지급' : '미지급',
+        benchmark: CATEGORY_BENCHMARK[category] || '-',
       };
     });
+  },
+  // Rule-based technical snapshot for the ETF Analyzer (#14). Deterministic mock,
+  // structured so a real fundamentals API can replace the body without touching callers.
+  analyze(etf){
+    const seed = hashStr(etf.id+etf.category);
+    return {
+      trackingError: mockMetric(seed+1, 0.02, 0.18, 2),
+      ter: etf.expenseRatio || mockMetric(seed+2, 0.03, 0.3, 2),
+      aum: Math.round(mockMetric(seed+3, 200, 8000, 0)),
+      volume: Math.round(mockMetric(seed+4, 3, 70, 1)),
+      return1y: mockMetric(seed+5, 8, 26, 1),
+      cagr3y: mockMetric(seed+6, 6, 20, 1),
+      cagr5y: mockMetric(seed+7, 5, 17, 1),
+      mdd: mockMetric(seed+8, -38, -12, 1),
+      volatility: mockMetric(seed+9, 9, 26, 1),
+      sharpe: mockMetric(seed+10, 0.3, 1.6, 2),
+      benchmark: CATEGORY_BENCHMARK[etf.category] || '-',
+      dividendPaying: CATEGORY_DIVIDEND[etf.category] || false,
+    };
   }
 };
+
 const AIProvider = {
   // Mock advisor reasoning built from the current recommendation engine output.
-  getAdvice(d){ return d.recommendation.reason; }
+  getAdvice(d){ return d.recommendation.reason; },
+  // Rule-based summary for a single ETF inside the Analyzer (#15). Not a real LLM call —
+  // built from simple thresholds so it can be swapped for a real Claude/OpenAI call later
+  // by replacing just this function body.
+  getEtfSummary(h, analysis, totalAssets){
+    const gapPct = totalAssets>0 ? ((h.targetAmount-h.evalAmount)/totalAssets)*100 : 0;
+    const lines = [];
+    if(Math.abs(gapPct) < 0.5) lines.push('현재 포트폴리오 기준 이 ETF는 목표 비중에 근접해 있습니다.');
+    else if(gapPct > 0) lines.push(`현재 포트폴리오 기준 이 ETF는 목표보다 ${pct(Math.abs(gapPct),1)} 부족합니다. 이번 매수에서는 우선순위가 높은 ETF입니다.`);
+    else lines.push(`현재 포트폴리오 기준 이 ETF는 목표보다 ${pct(Math.abs(gapPct),1)} 초과 보유 중입니다. 추가 매수보다는 비중 조절을 검토하세요.`);
+    if(analysis.ter <= 0.1 && analysis.trackingError <= 0.08) lines.push('현재 총보수와 추적오차도 양호한 편입니다.');
+    else if(analysis.ter > 0.2) lines.push('같은 카테고리 대비 총보수가 높은 편이니 ETF Compare에서 비교해 보세요.');
+    if(analysis.sharpe >= 0.8) lines.push('장기 투자에 적합한 위험 대비 수익 흐름을 보이고 있습니다.');
+    return lines.join(' ');
+  }
 };
 
 /* ---------------- core computations ---------------- */
@@ -582,9 +766,9 @@ function defaultState(){
       { id:'dc', name:'DC', broker:'미래에셋', cash:80000000 },
     ],
     etfs:[
-      { id:'sp500', name:'TIME 미국S&P500 액티브', manager:'TIME', category:'S&P500', targetWeight:35, currentPrice:13114, assetClass:'equity', expenseRatio:0.09, color:'#7C6FF0', memo:'', reason:'핵심 성장 자산', avgManual:null },
-      { id:'nasdaq', name:'TIME 미국나스닥100 액티브', manager:'TIME', category:'Nasdaq100', targetWeight:35, currentPrice:14200, assetClass:'equity', expenseRatio:0.09, color:'#E8B44C', memo:'', reason:'고성장 기술주 노출', avgManual:null },
-      { id:'bond', name:'KODEX 종합채권', manager:'KODEX', category:'Bond', targetWeight:30, currentPrice:10150, assetClass:'bond', expenseRatio:0.05, color:'#34D399', memo:'', reason:'변동성 완충', avgManual:null },
+      { id:'sp500', name:'TIME 미국S&P500 액티브', manager:'TIME', category:'S&P500', targetWeight:35, currentPrice:13114, basePrice:13114, assetClass:'equity', expenseRatio:0.09, color:'#7C6FF0', memo:'', reason:'핵심 성장 자산', avgManual:null },
+      { id:'nasdaq', name:'TIME 미국나스닥100 액티브', manager:'TIME', category:'Nasdaq100', targetWeight:35, currentPrice:14200, basePrice:14200, assetClass:'equity', expenseRatio:0.09, color:'#E8B44C', memo:'', reason:'고성장 기술주 노출', avgManual:null },
+      { id:'bond', name:'KODEX 종합채권', manager:'KODEX', category:'Bond', targetWeight:30, currentPrice:10150, basePrice:10150, assetClass:'bond', expenseRatio:0.05, color:'#34D399', memo:'', reason:'변동성 완충', avgManual:null },
     ],
     transactions:[
       { id:'t1', accountId:'dc', date:'2026-06-10', etfId:'sp500', type:'buy', price:12500, quantity:126, memo:'초기 매수' },
@@ -598,6 +782,7 @@ function defaultState(){
     calendarEvents:[
       { id:'ce1', date:'2026-12-28', type:'yearend', title:'연말 포트폴리오 점검', memo:'' }
     ],
+    marketHistory:[],
     compareNotes:{},
     mission:{ date:todayStr(), checks:[false,false,false,false,false] },
     settings:{
@@ -608,10 +793,12 @@ function defaultState(){
       monthlyContribution:2000000,
       rebalanceThreshold:5,
       planMonths:6,
-      planStartDate:'2026-06-01'
+      planStartDate:'2026-06-01',
+      api:{ provider:'mock', baseUrl:'', apiKey:'' }
     },
-    ui:{ journalActiveId:'j1', journalPreview:false, journalSearch:'', pendingTxEtf:null, pendingTxType:null, pendingTxAccount:null, etfAddOpen:false, calendarMonth:todayStr().slice(0,7), compareCategory:'S&P500',
-      editMode:false, dashboardLayout:'auto', dashboardOrder:['accountOverview','statusStrip','statsRow','dcPlan','score','mission','advisor','recommend','health','timeline'], dashboardHidden:[] }
+    ui:{ journalActiveId:'j1', journalPreview:false, journalSearch:'', pendingTxEtf:null, pendingTxType:null, pendingTxAccount:null, etfAddOpen:false, calendarMonth:todayStr().slice(0,7), compareCategory:'S&P500', compareView:'table',
+      editMode:false, dashboardLayout:'auto', dashboardOrder:['accountOverview','statusStrip','statsRow','dcPlan','score','mission','advisor','recommend','health','alerts','timeline'], dashboardHidden:[],
+      analyzerEtfId:null, priceHistoryRange:'1M' }
   };
 }
 
@@ -623,10 +810,11 @@ function loadState(){
     const base = defaultState();
     const merged = {
       ...base, ...saved,
-      settings:{...base.settings, ...(saved.settings||{})},
+      settings:{...base.settings, ...(saved.settings||{}), api:{...base.settings.api, ...((saved.settings||{}).api||{})}},
       ui:{...base.ui, ...(saved.ui||{})},
       compareNotes:{...(saved.compareNotes||{})}
     };
+    if(!Array.isArray(merged.marketHistory)) merged.marketHistory = [];
     if(!merged.mission || !Array.isArray(merged.mission.checks) || merged.mission.checks.length!==MISSION_ITEMS.length || merged.mission.date!==todayStr()){
       merged.mission = { date:todayStr(), checks:MISSION_ITEMS.map(()=>false) };
     }
@@ -651,6 +839,9 @@ let donutChart = null;
 let retireChart = null;
 let statsChart = null;
 let statsRows = [];
+let historyPriceChart = null;
+let liveData = { snapshot: [], quotes: {}, lastUpdated: null };
+let refreshTimer = null;
 
 /* ---------------- derived data (account-scoped) ---------------- */
 function getDerived(scopeId){
@@ -666,7 +857,25 @@ function getDerived(scopeId){
   const health = computeHealth(score.total);
   const recommendation = computeRecommendation(holdings, plan, totalAssets);
   const rebalance = computeRebalance(holdings, totalAssets, state.settings.rebalanceThreshold);
-  return { scopeId, txs, cash, totalAssets, holdings, evalTotal, plan, score, health, recommendation, rebalance };
+  const alerts = computeAlerts(holdings, rebalance, cash, totalAssets);
+  return { scopeId, txs, cash, totalAssets, holdings, evalTotal, plan, score, health, recommendation, rebalance, alerts };
+}
+
+function computeAlerts(holdings, rebalance, cash, totalAssets){
+  const alerts = [];
+  rebalance.forEach(r=>{
+    if(r.needsRebalance && r.diff>0) alerts.push({ id:'over:'+r.id, level:'warning', icon:'trending-up', text:`${r.name} 목표비중 초과 (${r.diff>=0?'+':''}${pct(r.diff,1)})` });
+    if(r.needsRebalance) alerts.push({ id:'rebal:'+r.id, level:'info', icon:'scale', text:`${r.name} 리밸런싱 검토 필요` });
+  });
+  const cashRatio = totalAssets>0 ? (cash/totalAssets)*100 : 0;
+  if(cashRatio < 5) alerts.push({ id:'lowcash', level:'danger', icon:'wallet', text:`현금비중 부족 (${pct(cashRatio,1)}) — 매도 대금이나 추가 입금을 검토하세요` });
+  state.watchlist.forEach(w=>{
+    const live = liveWatchPrice(w);
+    if(w.targetPrice>0 && live<=w.targetPrice){
+      alerts.push({ id:'watch:'+w.id, level:'success', icon:'target', text:`${w.name} 목표가 도달 (${won(live)} ≤ ${won(w.targetPrice)})` });
+    }
+  });
+  return alerts;
 }
 
 /* ================================================================== */
@@ -733,11 +942,11 @@ function cancelEditPrice(id){
 }
 function saveEditPrice(id){
   const val = Number(document.getElementById('price-input-'+id).value);
-  state.etfs = state.etfs.map(h => h.id===id ? {...h, currentPrice:val} : h);
+  state.etfs = state.etfs.map(h => h.id===id ? {...h, currentPrice:val, basePrice:val} : h);
   saveState(); render();
 }
 function saveEditPriceDirect(id, val){
-  state.etfs = state.etfs.map(h => h.id===id ? {...h, currentPrice:Number(val)} : h);
+  state.etfs = state.etfs.map(h => h.id===id ? {...h, currentPrice:Number(val), basePrice:Number(val)} : h);
   saveState(); render();
 }
 
@@ -763,6 +972,31 @@ function deleteEtf(id){
   saveState(); render();
 }
 function toggleEtfAdd(){ state.ui.etfAddOpen = !state.ui.etfAddOpen; render(); }
+
+function handleEtfSearchInput(query){
+  const box = document.getElementById('etf-search-results');
+  if(!box) return;
+  if(!query || query.trim().length===0){ box.style.display='none'; box.innerHTML=''; return; }
+  const q = query.toLowerCase();
+  const matches = ETF_CATALOG.filter(c => c.name.toLowerCase().includes(q) || c.manager.toLowerCase().includes(q)).slice(0,8);
+  if(matches.length===0){ box.style.display='none'; box.innerHTML=''; return; }
+  box.style.display='block';
+  box.innerHTML = matches.map(m => `<button type="button" class="etf-search-item" onclick="pickCatalogItem('${m.manager}','${m.category}')">${esc(m.name)} <span style="color:${COLORS.muted};font-size:10.5px">· ${m.category}</span></button>`).join('');
+}
+function pickCatalogItem(manager, category){
+  const item = ETF_CATALOG.find(c => c.manager===manager && c.category===category);
+  if(!item) return;
+  const nameEl = document.getElementById('new-etf-name');
+  const managerEl = document.getElementById('new-etf-manager');
+  const categoryEl = document.getElementById('new-etf-category');
+  const classEl = document.getElementById('new-etf-class');
+  if(nameEl) nameEl.value = item.name;
+  if(managerEl) managerEl.value = manager;
+  if(categoryEl) categoryEl.value = category;
+  if(classEl) classEl.value = (category==='Bond') ? 'bond' : 'equity';
+  const box = document.getElementById('etf-search-results');
+  if(box){ box.style.display='none'; box.innerHTML=''; }
+}
 function submitEtfAdd(){
   const name = document.getElementById('new-etf-name').value.trim();
   const weight = Number(document.getElementById('new-etf-weight').value);
@@ -774,7 +1008,7 @@ function submitEtfAdd(){
   const reason = document.getElementById('new-etf-reason').value;
   if(!name) return;
   const color = PALETTE[state.etfs.length % PALETTE.length];
-  state.etfs.push({ id:uid(), name, manager, category, targetWeight:weight||0, currentPrice:price||0, assetClass, expenseRatio, color, memo:'', reason });
+  state.etfs.push({ id:uid(), name, manager, category, targetWeight:weight||0, currentPrice:price||0, basePrice:price||0, assetClass, expenseRatio, color, memo:'', reason, avgManual:null });
   state.ui.etfAddOpen = false;
   saveState(); render();
 }
@@ -1004,6 +1238,87 @@ function currentWorkspace(){
 }
 
 /* ================================================================== */
+/* V5 — Live data engine (#1, #2, #3, #12, #13, #17)                   */
+/* ================================================================== */
+async function refreshLiveData(){
+  const provider = activeProvider();
+  try{
+    liveData.snapshot = await cachedCall('snapshot:'+provider.name, () => provider.getSnapshot());
+  }catch(e){ console.error('snapshot refresh failed, keeping last known values', e); }
+  for(const h of state.etfs){
+    try{
+      const q = await cachedCall('quote:'+provider.name+':'+h.id, () => provider.getQuote(h));
+      if(q && typeof q.price === 'number'){
+        liveData.quotes[h.id] = q;
+        state.etfs = state.etfs.map(e => e.id===h.id ? {...e, currentPrice:q.price} : e);
+      }
+    }catch(e){ console.error('quote refresh failed for', h.id, e); }
+  }
+  liveData.lastUpdated = Date.now();
+  saveState();
+}
+function startAutoRefresh(){
+  if(refreshTimer) clearInterval(refreshTimer);
+  refreshTimer = setInterval(async () => {
+    if(state.ui.editMode) return; // don't disrupt an active edit
+    await refreshLiveData();
+    if(['dashboard','portfolio','market','watchlist','analyzer'].includes(state.page)) render();
+  }, 30000);
+}
+async function manualRefresh(){
+  await refreshLiveData();
+  render();
+}
+
+// Best-effort daily snapshot (#8). There's no server cron in a static file, so this
+// captures once per calendar day on whichever load happens to be the first that day.
+function captureMarketHistorySnapshot(){
+  const today = todayStr();
+  if(state.marketHistory.some(r => r.date===today)) return;
+  const d = getDerived('all');
+  const find = id => (liveData.snapshot.find(m=>m.id===id) || {}).value || '-';
+  const doneToday = state.mission.checks.filter(Boolean).length;
+  const action = doneToday>0 ? `원칙 체크 ${doneToday}/${MISSION_ITEMS.length} 완료` : '기록된 행동 없음';
+  state.marketHistory.unshift({
+    date: today, sp500: find('sp500'), nasdaq: find('nasdaq'), vix: find('vix'), dollar: find('dxy'), us10y: find('ust10y'),
+    portfolio: Math.round(d.totalAssets), score: d.score.total, action
+  });
+  if(state.marketHistory.length > 365) state.marketHistory = state.marketHistory.slice(0,365);
+  saveState();
+}
+function manualCaptureHistory(){
+  const today = todayStr();
+  state.marketHistory = state.marketHistory.filter(r => r.date !== today);
+  captureMarketHistorySnapshot();
+  render();
+}
+
+function openAnalyzer(etfId){
+  state.ui.analyzerEtfId = etfId;
+  state.page = 'analyzer';
+  saveState(); render();
+}
+function setPriceHistoryRange(range){
+  state.ui.priceHistoryRange = range;
+  saveState(); render();
+}
+function setCompareView(view){
+  state.ui.compareView = view;
+  saveState(); render();
+}
+function updateApiSetting(key, val){
+  state.settings.api = { ...state.settings.api, [key]: val };
+  _cache.clear();
+  saveState(); render();
+}
+function liveWatchPrice(w){
+  const anchor = w.currentPrice || w.targetPrice || 10000;
+  const seed = hashStr('watch:'+w.id+':'+Math.floor(Date.now()/(5*60*1000)));
+  const changePct = mockMetric(seed, -2.5, 2.5, 2);
+  return Math.round(anchor * (1 + changePct/100));
+}
+
+/* ================================================================== */
 /* Render                                                                */
 /* ================================================================== */
 function render(){
@@ -1019,6 +1334,7 @@ function render(){
   if(state.page==='portfolio') initDonutChart(d.holdings, d.cash, d.totalAssets);
   if(state.page==='retirement') initRetireChart(d.totalAssets);
   if(state.page==='statistics') initStatsChart();
+  if(state.page==='analyzer') initHistoryChart();
   if(state.page==='transactions'){
     txFormType = state.ui.pendingTxType || txFormType;
     setTxType(txFormType);
@@ -1108,6 +1424,8 @@ function pageContent(d){
     case 'journal': return renderJournal();
     case 'retirement': return renderRetirement(d);
     case 'market': return renderMarket();
+    case 'analyzer': return renderAnalyzer(d);
+    case 'history': return renderHistory(d);
     case 'settings': return renderSettings(d);
     default: return '';
   }
@@ -1151,12 +1469,18 @@ function accountOverview(){
 }
 
 function cioStrip(d){
+  const vix = liveData.snapshot.find(m=>m.id==='vix');
+  const vixVal = vix ? parseFloat(vix.value) : null;
+  const marketStatus = vixVal==null ? '데이터 없음' : vixVal>=22 ? '변동성 확대' : vixVal<=14 ? '변동성 낮음' : '정상 변동성';
+  const marketColor = vixVal==null ? COLORS.muted : vixVal>=22 ? COLORS.red : vixVal<=14 ? COLORS.mint : COLORS.text2;
+  const updatedLabel = liveData.lastUpdated ? new Date(liveData.lastUpdated).toLocaleTimeString('ko-KR', {hour:'2-digit',minute:'2-digit',second:'2-digit'}) : '갱신 대기';
   const pills = [
     { icon:d.health.icon, label:'Portfolio Health', value:d.health.label, color:d.health.color },
     { icon:'target', label:'Investment Score', value:d.score.total+'점', color:COLORS.violet },
     { icon:'wallet', label:'Cash Position', value:won(d.cash), color:COLORS.mint },
     { icon:'flag', label:'Goal Progress', value:pct(d.score.goalScore/10*100,0), color:COLORS.amber },
-    { icon:'activity', label:'Market Status', value:'정상 변동성', color:COLORS.text2 },
+    { icon:'activity', label:'Market Status', value:marketStatus, color:marketColor },
+    { icon:'clock', label:'마지막 업데이트 (' + activeProvider().name + ')', value:updatedLabel, color:COLORS.text2 },
   ];
   return `<div class="cio-strip">
     ${pills.map(p=>`<div class="glass cio-pill">
@@ -1187,8 +1511,8 @@ function statCard(eyebrow, value, icon, accent){
 }
 
 function decisionCenterCard(d){
-  const alloc = d.recommendation.allocations.filter(a=>a.amount>0);
-  const buyLine = alloc.length ? `이번 달 매수 예정 · ${alloc.map(a=>esc(a.name)).join(', ')}` : '오늘 매수 없음';
+  const alloc = d.recommendation.allocations.filter(a=>a.amount>0).sort((a,b)=>b.amount-a.amount);
+  const buyLine = alloc.length ? `이번 달 매수 예정 · ${won(d.recommendation.monthlyAmount)} (${esc(alloc[0].name)} 우선 매수)` : '오늘 매수 없음';
   const progressLine = `이번 달 투자 진행률 ${pct(d.plan.investedRatio,0)}`;
   const gapSorted = d.rebalance.slice().sort((a,b)=>a.diff-b.diff);
   const worst = gapSorted[0];
@@ -1196,12 +1520,17 @@ function decisionCenterCard(d){
   if(worst && Math.abs(worst.diff) > 0.5){
     gapLine = `${esc(worst.name)} 목표보다 ${pct(Math.abs(worst.diff),0)} ${worst.diff<0?'부족':'초과'}`;
   }
+  const marketMover = liveData.snapshot.filter(m=>m.up!==null).slice().sort((a,b)=>parseFloat(a.change)-parseFloat(b.change))[0];
+  const marketLine = marketMover ? `오늘 시장 · ${marketMover.label} ${marketMover.change}` : null;
   const scoreLine = `Investment Score ${d.score.total}점 (${d.health.label})`;
   let conclusion;
-  if(d.recommendation.monthlyAmount<=0) conclusion = '목표 비중에 근접했습니다. 리밸런싱 여부만 점검하세요.';
+  if(d.alerts && d.alerts.some(a=>a.level==='danger')) conclusion = '알림을 먼저 확인하세요.';
+  else if(d.recommendation.monthlyAmount<=0) conclusion = '목표 비중에 근접했습니다. 리밸런싱 여부만 점검하세요.';
   else if(worst && Math.abs(worst.diff) > state.settings.rebalanceThreshold) conclusion = '리밸런싱을 검토할 시점입니다.';
   else conclusion = '예정된 계획을 유지하세요.';
-  const lines = [buyLine, progressLine];
+  const lines = [];
+  if(marketLine) lines.push(marketLine);
+  lines.push(buyLine, progressLine);
   if(gapLine) lines.push(gapLine);
   lines.push(scoreLine);
   return `<div class="glass decision-card">
@@ -1228,6 +1557,7 @@ const CARD_REGISTRY = {
   advisor: { title:'AI Advisor', full:false, render: (d) => advisorCard(d) },
   recommend: { title:'Recommended Purchase', full:false, render: (d) => recommendCard(d) },
   health: { title:'Portfolio Health', full:false, render: (d) => healthCard(d) },
+  alerts: { title:'Alert Center', full:false, render: (d) => alertsCard(d) },
   timeline: { title:'Investment Timeline', full:true, render: (d) => timelineCard(d) },
 };
 
@@ -1394,6 +1724,24 @@ function healthCard(d){
   </div>`;
 }
 
+function alertsCard(d){
+  const levelColor = { danger:COLORS.red, warning:COLORS.amber, info:COLORS.violet, success:COLORS.mint };
+  const alerts = d.alerts || [];
+  return `<div class="glass" style="padding:24px">
+    <div class="row-between" style="margin-bottom:4px">
+      <div class="eyebrow" style="margin:0">Alert Center</div>
+      ${alerts.length>0 ? `<span class="badge mono" style="background:${COLORS.redSoft};color:${COLORS.red}">${alerts.length}</span>` : ''}
+    </div>
+    <div style="font-size:15px;font-weight:500;margin-bottom:6px">자동 감지 알림</div>
+    ${alerts.length===0
+      ? `<div style="font-size:12.5px;color:${COLORS.muted};padding:8px 0">현재 감지된 알림이 없습니다.</div>`
+      : alerts.slice(0,6).map(a=>`<div class="alert-row">
+          <div class="alert-icon" style="background:${levelColor[a.level]}22"><i data-lucide="${a.icon}" style="width:14px;height:14px;color:${levelColor[a.level]}"></i></div>
+          <div style="font-size:12.5px;color:${COLORS.text2};line-height:1.5;padding-top:4px">${a.text}</div>
+        </div>`).join('')}
+  </div>`;
+}
+
 function timelineCard(d){
   const p = d.plan;
   const totalMonths = state.settings.planMonths || 6;
@@ -1466,6 +1814,14 @@ function renderPortfolio(d){
 
 function etfAddForm(){
   return `<div class="glass" style="padding:18px;margin-bottom:16px">
+    <div class="field search-wrap" style="margin-bottom:14px">
+      <label>ETF 검색 (자동완성)</label>
+      <div class="field-input">
+        <i data-lucide="search" style="width:13px;height:13px;color:${COLORS.muted}"></i>
+        <input type="text" placeholder="예: S&P, 나스닥, 배당..." oninput="handleEtfSearchInput(this.value)" autocomplete="off" />
+      </div>
+      <div id="etf-search-results" class="search-dropdown"></div>
+    </div>
     <div class="etfmaster-grid">
       <div class="field"><label>ETF명</label><div class="field-input"><input id="new-etf-name" type="text" placeholder="예: TIME 미국리츠" /></div></div>
       <div class="field"><label>운용사</label><div class="field-input"><select id="new-etf-manager">${MANAGERS.map(m=>`<option value="${m}">${m}</option>`).join('')}</select></div></div>
@@ -1479,6 +1835,30 @@ function etfAddForm(){
     <div style="display:flex;gap:8px;margin-top:12px">
       <button class="btn btn-primary" onclick="submitEtfAdd()"><i data-lucide="check" style="width:14px;height:14px"></i>추가</button>
       <button class="btn btn-ghost" onclick="toggleEtfAdd()">취소</button>
+    </div>
+  </div>`;
+}
+
+function renderLiveQuoteGrid(h){
+  const q = liveData.quotes[h.id];
+  const provider = activeProvider();
+  if(!q){
+    return `<div class="quote-grid"><div style="grid-column:1/-1;text-align:center;font-size:11px;color:${COLORS.muted}">실시간 시세 로딩 중...</div></div>`;
+  }
+  const up = q.changePct >= 0;
+  const updated = new Date(q.updatedAt).toLocaleTimeString('ko-KR', {hour:'2-digit',minute:'2-digit'});
+  const cells = [
+    ['등락률', (up?'+':'')+q.changePct.toFixed(2)+'%', up?COLORS.mint:COLORS.red],
+    ['전일대비', (up?'+':'')+won(q.changeAmt), up?COLORS.mint:COLORS.red],
+    ['거래량', q.volume.toLocaleString('ko-KR'), COLORS.text2],
+    ['시가', won(q.open), COLORS.text2],
+    ['고가', won(q.high), COLORS.text2],
+    ['저가', won(q.low), COLORS.text2],
+  ];
+  return `<div class="quote-grid">
+    ${cells.map(([l,v,c])=>`<div class="quote-cell"><div class="ql">${l}</div><div class="qv mono" style="color:${c}">${v}</div></div>`).join('')}
+    <div class="quote-cell" style="grid-column:span 2">
+      <span class="live-badge" style="background:${COLORS.violetSoft};color:${COLORS.violet}"><span class="live-dot pulsing"></span>${provider.name} · ${updated} 업데이트</span>
     </div>
   </div>`;
 }
@@ -1500,6 +1880,7 @@ function etfCard(h, totalAssets){
       </div>
     </div>
     <div class="etf-tagrow"><span>${esc(h.manager||'-')}</span><span>${esc(h.category||'-')}</span><span>총보수 ${h.expenseRatio||0}%</span></div>
+    ${renderLiveQuoteGrid(h)}
     <div style="display:grid;grid-template-columns:1fr 1fr;row-gap:12px;column-gap:16px;margin:14px 0">
       <div>
         <div style="font-size:11px;color:${COLORS.muted}">현재가</div>
@@ -1541,6 +1922,7 @@ function etfCard(h, totalAssets){
     <div class="etf-actions">
       <button class="btn btn-soft btn-sm" onclick="quickTx('${h.id}','buy')"><i data-lucide="plus" style="width:12px;height:12px"></i>매수</button>
       <button class="btn btn-ghost btn-sm" onclick="quickTx('${h.id}','sell')"><i data-lucide="minus" style="width:12px;height:12px"></i>매도</button>
+      <button class="btn btn-ghost btn-sm" onclick="openAnalyzer('${h.id}')"><i data-lucide="line-chart" style="width:12px;height:12px"></i>분석</button>
       <button class="btn btn-ghost btn-sm" onclick="setPage('settings')"><i data-lucide="pencil" style="width:12px;height:12px"></i>ETF 수정</button>
       <button class="btn btn-danger btn-sm" onclick="deleteEtf('${h.id}')"><i data-lucide="trash-2" style="width:12px;height:12px"></i>삭제</button>
     </div>
@@ -1667,30 +2049,50 @@ function renderRebalancing(d){
 function renderCompare(){
   const cat = state.ui.compareCategory;
   const rows = ETFProvider.compare(cat);
+  const view = state.ui.compareView;
   return `
   ${topbar('ETF Compare','운용사별 상품을 비교합니다 (Mock 데이터)')}
   <div class="glass" style="padding:20px;margin-bottom:16px">
     <div class="row-between">
       <div class="eyebrow" style="margin:0">비교 카테고리</div>
-      <span style="font-size:10px;padding:2px 6px;border-radius:4px;background:rgba(255,255,255,.06);color:${COLORS.muted}">MOCK</span>
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="font-size:10px;padding:2px 6px;border-radius:4px;background:rgba(255,255,255,.06);color:${COLORS.muted}">MOCK</span>
+        <div class="layout-switch">
+          <button class="${view==='table'?'active':''}" onclick="setCompareView('table')"><i data-lucide="table" style="width:12px;height:12px"></i></button>
+          <button class="${view==='card'?'active':''}" onclick="setCompareView('card')"><i data-lucide="layout-grid" style="width:12px;height:12px"></i></button>
+        </div>
+      </div>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
       ${CATEGORIES.map(c=>`<button class="account-tab ${cat===c?'active':''}" onclick="setCompareCategory('${c}')">${c}</button>`).join('')}
     </div>
   </div>
   <div class="glass" style="padding:24px">
+    ${view==='table' ? `
     <div class="compare-row head"><span>운용사</span><span>1년 수익률</span><span>총보수</span><span>순자산(억)</span><span>추적오차</span><span>거래량(만주)</span></div>
-    ${rows.map(r=>{
-      const key = cat+':'+r.manager;
-      return `<div class="compare-row">
+    ${rows.map(r=>`<div class="compare-row">
         <span class="cell-name">${r.manager}</span>
         <span class="mono" style="color:${COLORS.mint}">+${r.return1y}%</span>
         <span class="mono">${r.expenseRatio}%</span>
         <span class="mono">${r.aum}</span>
         <span class="mono">${r.tracking}%</span>
         <span class="mono">${r.volume}</span>
-      </div>`;
-    }).join('')}
+      </div>`).join('')}
+    <div style="font-size:10.5px;color:${COLORS.muted};margin-top:12px">배당: ${rows[0]?rows[0].dividend:'-'} · 기초지수: ${rows[0]?rows[0].benchmark:'-'} (카테고리 공통)</div>
+    ` : `
+    <div class="grid grid-3">
+      ${rows.map(r=>`<div class="glass" style="padding:16px;background:rgba(255,255,255,.02)">
+        <div style="font-size:14px;font-weight:600">${r.manager}</div>
+        <div style="font-size:11px;color:${COLORS.muted};margin-bottom:10px">${esc(r.name)}</div>
+        <div class="row-between" style="font-size:11.5px;margin-bottom:4px"><span style="color:${COLORS.muted}">1년 수익률</span><span class="mono" style="color:${COLORS.mint}">+${r.return1y}%</span></div>
+        <div class="row-between" style="font-size:11.5px;margin-bottom:4px"><span style="color:${COLORS.muted}">총보수</span><span class="mono">${r.expenseRatio}%</span></div>
+        <div class="row-between" style="font-size:11.5px;margin-bottom:4px"><span style="color:${COLORS.muted}">순자산</span><span class="mono">${r.aum}억</span></div>
+        <div class="row-between" style="font-size:11.5px;margin-bottom:4px"><span style="color:${COLORS.muted}">추적오차</span><span class="mono">${r.tracking}%</span></div>
+        <div class="row-between" style="font-size:11.5px;margin-bottom:4px"><span style="color:${COLORS.muted}">거래량</span><span class="mono">${r.volume}만주</span></div>
+        <div class="row-between" style="font-size:11.5px"><span style="color:${COLORS.muted}">배당</span><span class="mono">${r.dividend}</span></div>
+      </div>`).join('')}
+    </div>
+    `}
     <div style="margin-top:16px">
       <div class="field"><label>메모</label><div class="field-input"><input type="text" placeholder="이 카테고리에 대한 메모" value="${esc(state.compareNotes[cat]||'')}" onchange="onCompareNote('${cat}', this.value)" /></div></div>
     </div>
@@ -1700,11 +2102,25 @@ function renderCompare(){
 
 /* ---------------- market center ---------------- */
 function renderMarket(){
-  const data = MarketProvider.getSnapshot();
+  const data = liveData.snapshot;
+  const provider = activeProvider();
+  const updatedLabel = liveData.lastUpdated ? new Date(liveData.lastUpdated).toLocaleTimeString('ko-KR') : '-';
   return `
-  ${topbar('Market Center','주요 지표 요약 (Mock 데이터)')}
+  ${topbar('Market Center', provider.name==='Mock' ? '주요 지표 요약 (Mock 데이터)' : '주요 지표 요약 (' + provider.name + ' 연동 시도, 실패 시 Mock으로 자동 전환)')}
+  <div class="glass" style="padding:16px 20px;margin-bottom:16px">
+    <div class="row-between">
+      <span class="status-pill" style="background:${provider.name==='Mock'?COLORS.violetSoft:COLORS.mintSoft};color:${provider.name==='Mock'?COLORS.violet:COLORS.mint}">
+        <span class="live-dot pulsing" style="background:currentColor"></span>${provider.name} 연결
+      </span>
+      <div style="display:flex;align-items:center;gap:10px">
+        <span class="mono" style="font-size:11.5px;color:${COLORS.muted}">마지막 업데이트 ${updatedLabel}</span>
+        <button class="btn btn-ghost btn-sm" onclick="manualRefresh()"><i data-lucide="refresh-cw" style="width:12px;height:12px"></i>새로고침</button>
+      </div>
+    </div>
+  </div>
   <div class="market-grid">
-    ${data.map(m=>`<div class="glass market-card">
+    ${data.length===0 ? `<div style="grid-column:1/-1;text-align:center;padding:20px;color:${COLORS.muted};font-size:13px">데이터 로딩 중...</div>` :
+      data.map(m=>`<div class="glass market-card">
       <div class="mk-label">${m.label}</div>
       <div class="mk-value mono">${m.value}</div>
       ${m.change ? `<div class="mk-change mono" style="color:${m.up===true?COLORS.mint:m.up===false?COLORS.red:COLORS.text2}">${m.change}</div>` : ''}
@@ -1712,9 +2128,102 @@ function renderMarket(){
   </div>
   <div class="glass" style="padding:20px;margin-top:16px">
     <div style="font-size:12px;color:${COLORS.muted};line-height:1.6">
-      현재는 Mock 데이터를 표시합니다. MarketProvider 레이어를 통해 나중에 실시간 시세 API(KIS 등)로 교체할 수 있도록 설계되어 있습니다.
+      Mock 상태일 때는 5분 단위로 값이 갱신되는 시뮬레이션 데이터입니다. KIS/Yahoo/Finnhub는 브라우저에서 직접 호출할 수 없어(CORS, 시크릿 키 문제) Settings에서 프록시 서버 주소를 입력해야 실제 연동이 시도되며, 실패하면 자동으로 Mock으로 전환됩니다.
     </div>
   </div>`;
+}
+
+/* ---------------- ETF analyzer (#14, #15) ---------------- */
+function statusOf(diffPct){
+  if(Math.abs(diffPct) <= 1) return { label:'적정', emoji:'🟢', color:COLORS.mint };
+  if(diffPct > 1) return { label:'초과', emoji:'🔴', color:COLORS.red };
+  return { label:'부족', emoji:'🟡', color:COLORS.amber };
+}
+function renderAnalyzer(d){
+  const h = d.holdings.find(x=>x.id===state.ui.analyzerEtfId) || d.holdings[0];
+  if(!h) return `${topbar('ETF Analyzer','')}<div class="glass" style="padding:24px">등록된 ETF가 없습니다.</div>`;
+  const a = ETFProvider.analyze(h);
+  const currentWeight = d.totalAssets>0 ? (h.evalAmount/d.totalAssets)*100 : 0;
+  const weightDiff = currentWeight - h.targetWeight;
+  const st = statusOf(weightDiff);
+  const summary = AIProvider.getEtfSummary(h, a, d.totalAssets);
+  const metrics = [
+    ['현재가', won(h.currentPrice)], ['등락률', liveData.quotes[h.id] ? (liveData.quotes[h.id].changePct>=0?'+':'')+liveData.quotes[h.id].changePct.toFixed(2)+'%' : '-'],
+    ['추적오차', a.trackingError+'%'], ['총보수(TER)', a.ter+'%'],
+    ['순자산(AUM)', a.aum+'억'], ['거래량', a.volume+'만주'],
+    ['최근 1년 수익률', '+'+a.return1y+'%'], ['3년 CAGR', '+'+a.cagr3y+'%'],
+    ['5년 CAGR', '+'+a.cagr5y+'%'], ['최대낙폭(MDD)', a.mdd+'%'],
+    ['변동성', a.volatility+'%'], ['샤프지수', a.sharpe],
+    ['운용사', h.manager||'-'], ['기초지수', a.benchmark],
+    ['배당 여부', a.dividendPaying?'지급':'미지급'],
+  ];
+  return `
+  ${topbar('ETF Analyzer', esc(h.name))}
+  <button class="btn btn-ghost btn-sm" style="margin-bottom:16px" onclick="setPage('portfolio')"><i data-lucide="chevron-left" style="width:13px;height:13px"></i>Portfolio로 돌아가기</button>
+
+  <div class="glass" style="padding:24px;margin-bottom:16px">
+    <div class="row-between" style="margin-bottom:14px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span class="color-dot" style="width:14px;height:14px;background:${h.color}"></span>
+        <div><div style="font-size:17px;font-weight:600">${esc(h.name)}</div><div style="font-size:11.5px;color:${COLORS.muted}">${esc(h.manager)} · ${esc(h.category)}</div></div>
+      </div>
+      <span class="status-pill" style="background:${st.color}22;color:${st.color}">${st.emoji} ${st.label}</span>
+    </div>
+    <div class="grid" style="grid-template-columns:repeat(2,1fr);gap:10px">
+      ${metrics.map(([l,v])=>`<div class="analyzer-metric"><div class="am-label">${l}</div><div class="am-value mono">${v}</div></div>`).join('')}
+    </div>
+  </div>
+
+  <div class="glass" style="padding:24px;margin-bottom:16px">
+    <div class="row-between" style="margin-bottom:10px">
+      <div class="eyebrow" style="margin:0">Price History</div>
+      <div class="range-switch">
+        ${['1D','1W','1M','3M','6M','1Y'].map(r=>`<button class="${state.ui.priceHistoryRange===r?'active':''}" onclick="setPriceHistoryRange('${r}')">${r}</button>`).join('')}
+      </div>
+    </div>
+    <div style="position:relative;height:220px"><canvas id="history-price-canvas"></canvas></div>
+  </div>
+
+  <div class="glass" style="padding:24px;margin-bottom:16px">
+    <div class="eyebrow">내 투자 정보</div>
+    <div class="dc-grid" style="grid-template-columns:repeat(3,1fr)">
+      <div class="dc-item"><div class="dc-label">현재 보유금액</div><div class="dc-value mono">${won(h.evalAmount)}</div></div>
+      <div class="dc-item"><div class="dc-label">목표금액</div><div class="dc-value mono">${won(h.targetAmount)}</div></div>
+      <div class="dc-item"><div class="dc-label">현재 비중</div><div class="dc-value mono">${pct(currentWeight,1)}</div></div>
+      <div class="dc-item"><div class="dc-label">목표 비중</div><div class="dc-value mono">${h.targetWeight}%</div></div>
+      <div class="dc-item"><div class="dc-label">부족금액</div><div class="dc-value mono" style="color:${COLORS.amber}">${weightDiff<0?won(Math.abs(weightDiff)/100*d.totalAssets):'-'}</div></div>
+      <div class="dc-item"><div class="dc-label">초과금액</div><div class="dc-value mono" style="color:${COLORS.red}">${weightDiff>0?won(weightDiff/100*d.totalAssets):'-'}</div></div>
+    </div>
+  </div>
+
+  <div class="glass" style="padding:24px;border:1px solid rgba(124,111,240,0.3)">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+      <i data-lucide="sparkles" style="width:15px;height:15px;color:${COLORS.amber}"></i>
+      <div class="eyebrow" style="margin:0">AI Summary</div>
+      <span style="font-size:10px;padding:2px 6px;border-radius:4px;background:rgba(255,255,255,.06);color:${COLORS.muted}">RULE-BASED</span>
+    </div>
+    <p style="font-size:13.5px;line-height:1.75;color:${COLORS.text}">${summary}</p>
+  </div>
+  `;
+}
+function initHistoryChart(){
+  const el = document.getElementById('history-price-canvas');
+  if(!el) return;
+  const d = getDerived();
+  const h = d.holdings.find(x=>x.id===state.ui.analyzerEtfId) || d.holdings[0];
+  if(!h) return;
+  if(historyPriceChart) historyPriceChart.destroy();
+  cachedCall('history:'+activeProvider().name+':'+h.id+':'+state.ui.priceHistoryRange, () => activeProvider().getHistory(h, state.ui.priceHistoryRange))
+    .then(points => {
+      if(historyPriceChart) historyPriceChart.destroy();
+      historyPriceChart = new Chart(el, {
+        type:'line',
+        data:{ labels: points.map(p=>p.date), datasets:[{ data: points.map(p=>p.close), borderColor:COLORS.violet, backgroundColor:'rgba(124,111,240,0.15)', fill:true, tension:0.25, pointRadius:0, borderWidth:2 }] },
+        options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{display:false} },
+          scales:{ x:{ ticks:{ color:COLORS.text2, font:{size:9}, maxTicksLimit:8 }, grid:{ display:false } },
+            y:{ ticks:{ color:COLORS.text2, font:{size:10}, callback:v=>won(v) }, grid:{ color:'rgba(255,255,255,0.05)' } } } }
+      });
+    });
 }
 
 /* ---------------- watchlist ---------------- */
@@ -1732,16 +2241,22 @@ function renderWatchlist(){
     <button class="btn btn-primary" style="margin-top:12px" onclick="addWatchItem()"><i data-lucide="plus" style="width:14px;height:14px"></i>추가</button>
   </div>
   <div class="glass" style="padding:24px">
-    <div class="watch-row head"><span>ETF</span><span>목표가</span><span>현재가</span><span>차이</span><span></span></div>
+    <div class="row-between" style="margin-bottom:4px">
+      <div class="eyebrow" style="margin:0">관심 ETF</div>
+      <span class="mono" style="font-size:10.5px;color:${COLORS.muted}">실시간(Mock) 5분 갱신</span>
+    </div>
+    <div class="watch-row head" style="margin-top:10px"><span>ETF</span><span>목표가</span><span>현재가</span><span>등락률 / 차이</span><span></span></div>
     ${state.watchlist.length===0 ? `<div style="text-align:center;padding:20px 0;font-size:13px;color:${COLORS.muted}">관심 ETF가 없습니다.</div>` :
       state.watchlist.map(w=>{
-        const diff = w.targetPrice>0 ? ((w.currentPrice-w.targetPrice)/w.targetPrice)*100 : 0;
-        const buyZone = w.currentPrice <= w.targetPrice;
+        const live = liveWatchPrice(w);
+        const diff = w.targetPrice>0 ? ((live-w.targetPrice)/w.targetPrice)*100 : 0;
+        const changePct = w.currentPrice>0 ? ((live-w.currentPrice)/w.currentPrice)*100 : 0;
+        const reached = w.targetPrice>0 && live<=w.targetPrice;
         return `<div class="watch-row">
-          <span>${esc(w.name)}${w.memo?`<div style="font-size:10.5px;color:${COLORS.muted}">${esc(w.memo)}</div>`:''}</span>
+          <span>${esc(w.name)}${reached?` <span class="live-badge" style="background:${COLORS.mintSoft};color:${COLORS.mint}"><i data-lucide="check" style="width:9px;height:9px"></i>목표가 도달</span>`:''}${w.memo?`<div style="font-size:10.5px;color:${COLORS.muted}">${esc(w.memo)}</div>`:''}</span>
           <span class="mono">${won(w.targetPrice)}</span>
-          <span class="mono">${won(w.currentPrice)}</span>
-          <span class="mono" style="color:${buyZone?COLORS.mint:COLORS.amber}">${diff>=0?'+':''}${pct(diff,1)}</span>
+          <span class="mono">${won(live)}</span>
+          <span class="mono" style="color:${reached?COLORS.mint:COLORS.amber}">${diff>=0?'+':''}${pct(diff,1)} <span style="color:${changePct>=0?COLORS.mint:COLORS.red};font-size:10.5px">(${changePct>=0?'+':''}${pct(changePct,1)})</span></span>
           <button onclick="deleteWatchItem('${w.id}')"><i data-lucide="trash-2" style="width:13px;height:13px;color:${COLORS.muted}"></i></button>
         </div>`;
       }).join('')}
@@ -1876,6 +2391,32 @@ function initStatsChart(){
 }
 
 /* ---------------- journal ---------------- */
+function renderHistory(d){
+  const rows = state.marketHistory;
+  return `
+  ${topbar('History','매일 시장 마감 후 자동 기록되는 스냅샷 (하루 1회, 최초 접속 시점 기준)')}
+  <div class="glass" style="padding:20px;margin-bottom:16px">
+    <div class="row-between">
+      <div style="font-size:13px;color:${COLORS.muted}">오늘 기록이 아직 없다면 아래 버튼으로 바로 남길 수 있습니다.</div>
+      <button class="btn btn-soft btn-sm" onclick="manualCaptureHistory()"><i data-lucide="camera" style="width:12px;height:12px"></i>오늘 스냅샷 기록</button>
+    </div>
+  </div>
+  <div class="glass" style="padding:24px">
+    <div class="history-row head"><span>날짜</span><span>S&P500</span><span>Nasdaq</span><span>VIX</span><span>Dollar</span><span>US10Y</span><span>Score</span><span>오늘 행동 / 포트폴리오</span></div>
+    ${rows.length===0 ? `<div style="text-align:center;padding:24px 0;font-size:13px;color:${COLORS.muted}">아직 기록된 스냅샷이 없습니다.</div>` :
+      rows.map(r=>`<div class="history-row">
+        <span class="mono">${r.date}</span>
+        <span class="mono">${r.sp500}</span>
+        <span class="mono">${r.nasdaq}</span>
+        <span class="mono">${r.vix}</span>
+        <span class="mono">${r.dollar}</span>
+        <span class="mono">${r.us10y}</span>
+        <span class="mono" style="color:${COLORS.violet}">${r.score}점</span>
+        <span style="color:${COLORS.text2}">${esc(r.action)} · <span class="mono">${won(r.portfolio)}</span></span>
+      </div>`).join('')}
+  </div>`;
+}
+
 function renderJournal(){
   const q = (state.ui.journalSearch||'').toLowerCase();
   const filtered = state.journal.filter(e => !q || e.content.toLowerCase().includes(q) || (e.tags||[]).some(t=>t.toLowerCase().includes(q)));
@@ -1988,8 +2529,29 @@ function initRetireChart(totalAssets){
 /* ---------------- settings ---------------- */
 function renderSettings(d){
   const weightSum = state.etfs.reduce((s,h)=>s+h.targetWeight,0);
+  const api = state.settings.api;
   return `
   ${topbar('Settings','Atlas의 기준값을 관리합니다')}
+  <div class="glass" style="padding:24px;margin-bottom:16px">
+    <div class="row-between" style="margin-bottom:4px">
+      <div class="eyebrow" style="margin:0">Live Data</div>
+      <span class="status-pill" style="background:${api.provider==='mock'?COLORS.violetSoft:COLORS.mintSoft};color:${api.provider==='mock'?COLORS.violet:COLORS.mint}">현재 사용 중: ${activeProvider().name}</span>
+    </div>
+    <div style="font-size:15px;font-weight:500;margin-bottom:14px">API Provider 설정</div>
+    <div class="grid" style="grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:14px">
+      ${[['mock','Mock'],['kis','KIS'],['yahoo','Yahoo'],['finnhub','Finnhub']].map(([id,label])=>`
+        <button class="account-tab ${api.provider===id?'active':''}" onclick="updateApiSetting('provider','${id}')" style="text-align:center">${label}</button>
+      `).join('')}
+    </div>
+    <div class="grid" style="grid-template-columns:repeat(2,1fr);gap:12px">
+      <div class="field"><label>프록시 Base URL</label><div class="field-input"><input type="text" placeholder="https://your-proxy.example.com" value="${esc(api.baseUrl)}" onchange="updateApiSetting('baseUrl', this.value)" /></div></div>
+      <div class="field"><label>API Key</label><div class="field-input"><input type="password" placeholder="sk-..." value="${esc(api.apiKey)}" onchange="updateApiSetting('apiKey', this.value)" /></div></div>
+    </div>
+    <div style="font-size:10.5px;color:${COLORS.muted};line-height:1.6;margin-top:10px">
+      KIS·Yahoo·Finnhub는 브라우저에서 직접 호출할 수 없습니다 (CORS 및 시크릿 키 보안 문제). 여기 입력한 값은 이 브라우저의 localStorage에만 저장되며 코드에는 저장되지 않지만, 실제로 동작하려면 본인이 운영하는 프록시 서버가 필요합니다. 프록시가 없거나 호출이 실패하면 자동으로 Mock 데이터로 전환되어 화면에는 오류가 표시되지 않습니다.
+    </div>
+  </div>
+
   <div class="glass" style="padding:24px;margin-bottom:16px">
     <div class="eyebrow">계좌 관리</div>
     <div style="font-size:15px;font-weight:500;margin-bottom:14px">Account Overview</div>
@@ -2089,6 +2651,9 @@ function renderSettings(d){
 
 /* ---------------- boot ---------------- */
 render();
+captureMarketHistorySnapshot();
+refreshLiveData().then(() => { if(!state.ui.editMode) render(); });
+startAutoRefresh();
 </script>
 </body>
 </html>
