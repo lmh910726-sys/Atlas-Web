@@ -1,0 +1,2094 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<title>Atlas — Personal Investment OS</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 rx=%2222%22 fill=%22%237C6FF0%22/></svg>" />
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+  :root{
+    --bg:#08090C; --panel:rgba(255,255,255,0.035); --panel-border:rgba(255,255,255,0.08);
+    --violet:#7C6FF0; --violet-soft:rgba(124,111,240,0.16);
+    --mint:#34D399; --mint-soft:rgba(52,211,153,0.14);
+    --red:#F87171; --red-soft:rgba(248,113,113,0.14);
+    --amber:#E8B44C; --amber-soft:rgba(232,180,76,0.14);
+    --text:#F3F4F6; --text2:#9AA0AC; --muted:#5B6270;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:'Inter',-apple-system,sans-serif;}
+  .font-display{font-family:'Space Grotesk','Inter',sans-serif;}
+  .mono{font-family:'JetBrains Mono',ui-monospace,monospace;}
+  ::-webkit-scrollbar{width:6px;height:6px;}
+  ::-webkit-scrollbar-thumb{background:rgba(255,255,255,.12);border-radius:99px;}
+  ::-webkit-scrollbar-track{background:transparent;}
+  a,button{cursor:pointer;}
+  button{font-family:inherit;border:none;background:none;color:inherit;}
+  input,select,textarea{font-family:inherit;color:var(--text);}
+  input:focus-visible,button:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--violet);outline-offset:2px;}
+  @media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important;}}
+
+  #root{display:flex;min-height:100vh;width:100%;}
+
+  /* ---------- layout ---------- */
+  .sidebar{display:none;flex-direction:column;width:264px;flex-shrink:0;height:100vh;position:sticky;top:0;
+    border-right:1px solid var(--panel-border);padding:24px 18px;}
+  @media (min-width:768px){.sidebar{display:flex;}}
+  .brand{display:flex;align-items:center;gap:10px;padding:0 8px;margin-bottom:28px;flex-shrink:0;}
+  .brand-mark{width:36px;height:36px;border-radius:12px;display:flex;align-items:center;justify-content:center;
+    background:linear-gradient(135deg,var(--violet),var(--amber));}
+  .brand-name{font-size:15px;font-weight:600;letter-spacing:-0.01em;}
+  .brand-sub{font-size:10px;color:var(--muted);letter-spacing:.02em;}
+  .nav-scroll{flex:1;overflow-y:auto;min-height:0;}
+  .nav-group-label{font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:var(--muted);padding:14px 12px 6px;}
+  .nav-group-label:first-child{padding-top:2px;}
+  .nav-item{display:flex;align-items:center;gap:12px;padding:9px 12px;border-radius:12px;width:100%;text-align:left;
+    color:var(--text2);margin-bottom:1px;}
+  .nav-item.active{background:var(--violet-soft);color:var(--text);}
+  .nav-item span.label{flex:1;font-size:13px;font-weight:500;}
+  .sidebar-footer{margin-top:10px;padding:10px 12px 0;font-size:10.5px;line-height:1.6;color:var(--muted);flex-shrink:0;border-top:1px solid var(--panel-border);}
+
+  main{flex:1;min-width:0;padding:26px 18px 104px;max-width:1440px;margin:0 auto;width:100%;}
+  @media (min-width:640px){main{padding:26px 32px 40px;}}
+
+  .tabbar{display:flex;position:fixed;bottom:0;left:0;right:0;z-index:30;border-top:1px solid var(--panel-border);
+    backdrop-filter:blur(20px);background:rgba(8,9,12,.9);overflow-x:auto;}
+  @media (min-width:768px){.tabbar{display:none;}}
+  .tab-item{flex:0 0 auto;display:flex;flex-direction:column;align-items:center;gap:4px;padding:9px 14px;color:var(--muted);min-width:60px;}
+  .tab-item.active{color:var(--text);}
+  .tab-item.active i{color:var(--violet);}
+
+  .topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;flex-wrap:wrap;gap:10px;}
+  .topbar h1{font-size:21px;font-weight:600;letter-spacing:-0.02em;margin:0;}
+  @media(min-width:768px){.topbar h1{font-size:25px;}}
+  .topbar p{font-size:13px;color:var(--muted);margin:2px 0 0;}
+  .topbar .date{font-size:12.5px;color:var(--text2);display:none;}
+  @media(min-width:480px){.topbar .date{display:block;}}
+
+  /* ---------- atoms ---------- */
+  .glass{background:var(--panel);border:1px solid var(--panel-border);backdrop-filter:blur(20px);border-radius:24px;}
+  .eyebrow{font-size:11px;text-transform:uppercase;letter-spacing:.14em;color:var(--muted);font-weight:500;margin-bottom:4px;}
+  .grid{display:grid;gap:16px;}
+  .grid-3{grid-template-columns:repeat(1,1fr);}
+  @media(min-width:640px){.grid-3{grid-template-columns:repeat(3,1fr);}}
+  .grid-4{grid-template-columns:repeat(1,1fr);}
+  @media(min-width:640px){.grid-4{grid-template-columns:repeat(2,1fr);}}
+  @media(min-width:1100px){.grid-4{grid-template-columns:repeat(4,1fr);}}
+  .grid-2{grid-template-columns:repeat(1,1fr);}
+  @media(min-width:1024px){.grid-2{grid-template-columns:repeat(2,1fr);}}
+  .grid-dash{grid-template-columns:repeat(1,1fr);}
+  @media(min-width:1024px){.grid-dash{grid-template-columns:repeat(3,1fr);}}
+  .grid-portfolio{grid-template-columns:repeat(1,1fr);}
+  @media(min-width:1024px){.grid-portfolio{grid-template-columns:1fr 2fr;}}
+  .grid-rec{grid-template-columns:repeat(1,1fr);}
+  @media(min-width:1024px){.grid-rec{grid-template-columns:2fr 1fr;}}
+  .etf-grid{display:grid;grid-template-columns:repeat(1,1fr);gap:16px;}
+  @media(min-width:640px){.etf-grid{grid-template-columns:repeat(2,1fr);}}
+
+  .stat-card{padding:20px;display:flex;flex-direction:column;justify-content:space-between;min-height:112px;}
+  .stat-top{display:flex;align-items:flex-start;justify-content:space-between;}
+  .icon-badge{width:32px;height:32px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+  .stat-value{font-size:20px;font-weight:600;letter-spacing:-0.01em;}
+  .stat-delta{display:flex;align-items:center;gap:4px;margin-top:4px;font-size:11.5px;}
+
+  .btn{display:inline-flex;align-items:center;gap:6px;padding:10px 16px;border-radius:12px;font-size:13px;font-weight:500;}
+  .btn-primary{background:var(--violet);color:#0A0B0F;}
+  .btn-soft{background:var(--violet-soft);color:var(--violet);}
+  .btn-ghost{background:rgba(255,255,255,.04);color:var(--text2);}
+  .btn-danger{background:var(--red-soft);color:var(--red);}
+  .btn-sm{padding:6px 10px;font-size:11.5px;border-radius:9px;}
+
+  .field label{display:block;font-size:12px;color:var(--text2);margin-bottom:6px;}
+  .field-input{display:flex;align-items:center;gap:8px;border-radius:12px;padding:10px 12px;border:1px solid var(--panel-border);background:rgba(255,255,255,.02);}
+  .field-input input,.field-input select{background:transparent;border:none;outline:none;width:100%;font-size:14px;}
+  .field-suffix{font-size:11px;color:var(--muted);flex-shrink:0;}
+  input[type=range]{width:100%;accent-color:var(--violet);height:3px;}
+  input[type=color]{width:32px;height:32px;padding:0;border:none;border-radius:8px;background:transparent;}
+
+  .divider{border-top:1px solid var(--panel-border);}
+  .progress-track{width:100%;height:6px;border-radius:99px;background:rgba(255,255,255,.07);overflow:hidden;}
+  .progress-fill{height:100%;border-radius:99px;background:var(--violet);}
+  .badge{font-size:11px;padding:4px 10px;border-radius:99px;font-weight:500;}
+  .row-between{display:flex;align-items:center;justify-content:space-between;}
+
+  .mission-item{display:flex;align-items:center;gap:10px;padding:6px 4px;width:100%;text-align:left;}
+  .mission-item span{font-size:13.5px;color:var(--text2);}
+  .mission-item.done span{color:var(--muted);text-decoration:line-through;}
+
+  .tx-toggle{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;}
+  .tx-toggle button{padding:7px 16px;border-radius:10px;font-size:13px;font-weight:500;background:rgba(255,255,255,.03);color:var(--muted);}
+  .tx-toggle button.active.buy{background:var(--violet-soft);color:var(--violet);}
+  .tx-toggle button.active.sell{background:var(--red-soft);color:var(--red);}
+  .tx-toggle button.active.dividend{background:var(--amber-soft);color:var(--amber);}
+
+  .tx-row{display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-top:1px solid rgba(255,255,255,.06);}
+  .tx-row:first-child{border-top:none;}
+  .tx-type-tag{font-size:11px;padding:4px 8px;border-radius:8px;flex-shrink:0;}
+
+  .journal-entry-btn{display:block;width:100%;text-align:left;padding:10px 12px;border-radius:12px;margin-bottom:2px;}
+  .journal-entry-btn.active{background:rgba(255,255,255,.05);}
+  .journal-date{font-size:11px;color:var(--muted);margin-bottom:2px;}
+  .journal-excerpt{font-size:12.5px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .tag-chip{display:inline-block;font-size:10.5px;padding:2px 8px;border-radius:99px;background:var(--violet-soft);color:var(--violet);margin:0 4px 4px 0;}
+
+  #journal-textarea{width:100%;min-height:360px;background:transparent;border:none;outline:none;resize:vertical;
+    font-size:13.5px;line-height:1.7;color:var(--text);}
+  .md-preview h2{font-size:20px;font-weight:700;margin:16px 0 8px;}
+  .md-preview h3{font-size:17px;font-weight:600;margin:14px 0 6px;}
+  .md-preview h4{font-size:15px;font-weight:600;margin:12px 0 4px;}
+  .md-preview p{font-size:13.5px;line-height:1.7;color:var(--text2);margin:4px 0;}
+  .md-preview li{margin-left:18px;color:var(--text2);font-size:13.5px;line-height:1.7;}
+  .md-preview strong{color:var(--text);font-weight:600;}
+
+  .cio-strip{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:16px;}
+  .cio-pill{display:flex;align-items:center;gap:8px;padding:9px 14px;border-radius:14px;flex:1;min-width:150px;}
+  .cio-pill .cio-label{font-size:10.5px;color:var(--muted);}
+  .cio-pill .cio-value{font-size:13.5px;font-weight:600;}
+
+  .dc-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin:16px 0;}
+  @media(min-width:768px){.dc-grid{grid-template-columns:repeat(5,1fr);}}
+  .dc-item .dc-label{font-size:10.5px;color:var(--muted);margin-bottom:3px;}
+  .dc-item .dc-value{font-size:14.5px;font-weight:600;}
+
+  .gauge-wrap{position:relative;height:190px;}
+  .gauge-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none;}
+  .factor-row{display:flex;align-items:center;gap:10px;margin-bottom:9px;}
+  .factor-row .factor-name{font-size:11.5px;color:var(--text2);width:96px;flex-shrink:0;}
+  .factor-row .progress-track{flex:1;}
+  .factor-row .factor-val{font-size:11px;color:var(--muted);width:38px;text-align:right;flex-shrink:0;}
+
+  .health-badge{display:inline-flex;align-items:center;gap:8px;padding:8px 16px;border-radius:14px;font-size:14px;font-weight:600;}
+
+  .rec-item{display:flex;align-items:center;justify-content:space-between;padding:11px 0;border-top:1px solid rgba(255,255,255,.06);}
+  .rec-item:first-child{border-top:none;}
+  .rec-dot{width:9px;height:9px;border-radius:99px;flex-shrink:0;}
+
+  .timeline-wrap{position:relative;padding:28px 4px 10px;}
+  .timeline-track{position:relative;height:6px;border-radius:99px;background:rgba(255,255,255,.08);}
+  .timeline-fill{position:absolute;left:0;top:0;height:100%;border-radius:99px;background:var(--violet);}
+  .timeline-marker{position:absolute;top:-7px;width:20px;height:20px;border-radius:99px;border:3px solid var(--bg);
+    background:var(--muted);transform:translateX(-50%);display:flex;align-items:center;justify-content:center;}
+  .timeline-marker.reached{background:var(--violet);}
+  .timeline-label{position:absolute;top:16px;transform:translateX(-50%);text-align:center;white-space:nowrap;}
+  .timeline-label .tl-month{font-size:11px;color:var(--text2);}
+  .timeline-label .tl-target{font-size:10px;color:var(--muted);}
+
+  .etf-meta{font-size:11.5px;color:var(--text2);font-style:italic;margin-top:6px;line-height:1.5;}
+  .etf-tagrow{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;}
+  .etf-tagrow span{font-size:10px;padding:2px 7px;border-radius:6px;background:rgba(255,255,255,.05);color:var(--text2);}
+  .etf-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:14px;padding-top:14px;border-top:1px solid var(--panel-border);}
+  .color-dot{width:11px;height:11px;border-radius:99px;display:inline-block;flex-shrink:0;}
+
+  .etfmaster-row{padding:16px;border-radius:16px;background:rgba(255,255,255,.02);border:1px solid var(--panel-border);margin-bottom:12px;}
+  .etfmaster-grid{display:grid;grid-template-columns:repeat(1,1fr);gap:10px;}
+  @media(min-width:640px){.etfmaster-grid{grid-template-columns:repeat(2,1fr);}}
+  @media(min-width:1024px){.etfmaster-grid{grid-template-columns:repeat(3,1fr);}}
+
+  .lg-4{grid-template-columns:1fr}
+  @media(min-width:1024px){.lg-4{grid-template-columns:280px 1fr}}
+
+  /* ---------- v3 additions ---------- */
+  .account-tabs{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;}
+  .account-tab{padding:8px 16px;border-radius:12px;font-size:12.5px;font-weight:500;background:rgba(255,255,255,.03);color:var(--muted);}
+  .account-tab.active{background:var(--violet-soft);color:var(--violet);}
+
+  .account-card{padding:18px;}
+  .account-card .acc-name{font-size:14px;font-weight:600;}
+  .account-card .acc-broker{font-size:10.5px;color:var(--muted);}
+  .account-card .acc-row{display:flex;justify-content:space-between;font-size:11.5px;color:var(--text2);margin-top:8px;}
+  .account-card .acc-row b{color:var(--text);font-weight:600;font-family:'JetBrains Mono',monospace;}
+
+  .table-row{display:grid;grid-template-columns:1.6fr repeat(5,1fr);gap:8px;padding:10px 4px;align-items:center;font-size:12px;}
+  .table-row.head{color:var(--muted);font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;border-bottom:1px solid var(--panel-border);padding-bottom:10px;}
+  .table-row:not(.head){border-top:1px solid rgba(255,255,255,.05);}
+  .table-row .cell-name{font-weight:600;color:var(--text);}
+
+  .compare-row{display:grid;grid-template-columns:1fr repeat(5,0.8fr);gap:8px;padding:11px 6px;align-items:center;font-size:12px;border-top:1px solid rgba(255,255,255,.05);}
+  .compare-row.head{color:var(--muted);font-size:10px;text-transform:uppercase;border-top:none;border-bottom:1px solid var(--panel-border);padding-bottom:10px;}
+
+  .market-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;}
+  @media(min-width:768px){.market-grid{grid-template-columns:repeat(3,1fr);}}
+  .market-card{padding:18px;}
+  .market-card .mk-label{font-size:11.5px;color:var(--muted);}
+  .market-card .mk-value{font-size:19px;font-weight:600;margin-top:4px;}
+  .market-card .mk-change{font-size:11.5px;margin-top:4px;}
+
+  .watch-row{display:grid;grid-template-columns:1.6fr 1fr 1fr 1fr auto;gap:10px;align-items:center;padding:12px 4px;border-top:1px solid rgba(255,255,255,.05);font-size:12.5px;}
+  .watch-row.head{color:var(--muted);font-size:10.5px;text-transform:uppercase;border-top:none;}
+
+  .cal-nav{display:flex;align-items:center;gap:10px;}
+  .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-top:14px;}
+  .cal-dow{font-size:10px;color:var(--muted);text-align:center;padding-bottom:4px;}
+  .cal-cell{aspect-ratio:1;border-radius:10px;background:rgba(255,255,255,.02);border:1px solid transparent;padding:6px;display:flex;flex-direction:column;}
+  .cal-cell.empty{background:transparent;}
+  .cal-cell.today{border-color:var(--violet);}
+  .cal-daynum{font-size:11px;color:var(--text2);}
+  .cal-dots{display:flex;gap:2px;margin-top:auto;flex-wrap:wrap;}
+  .cal-dot{width:5px;height:5px;border-radius:99px;}
+  .event-row{display:flex;align-items:center;justify-content:space-between;padding:9px 0;border-top:1px solid rgba(255,255,255,.05);font-size:12.5px;}
+  .event-row:first-child{border-top:none;}
+
+  .quick-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;}
+  .quick-btn{display:flex;align-items:center;gap:8px;padding:12px 16px;border-radius:14px;background:rgba(255,255,255,.03);border:1px solid var(--panel-border);flex:1;min-width:140px;justify-content:center;font-size:12.5px;color:var(--text2);}
+
+  /* ---------- v4 additions ---------- */
+  .mode-toggle{display:flex;align-items:center;gap:10px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end;}
+  .mode-switch{display:flex;border-radius:12px;background:rgba(255,255,255,.04);padding:3px;border:1px solid var(--panel-border);}
+  .mode-switch button{padding:6px 14px;border-radius:9px;font-size:12px;font-weight:500;color:var(--muted);}
+  .mode-switch button.active{background:var(--violet);color:#0A0B0F;}
+  .layout-switch{display:flex;border-radius:12px;background:rgba(255,255,255,.04);padding:3px;border:1px solid var(--panel-border);}
+  .layout-switch button{padding:6px 11px;border-radius:9px;font-size:11.5px;color:var(--muted);}
+  .layout-switch button.active{background:var(--violet-soft);color:var(--violet);}
+
+  .workspace-box{margin-bottom:18px;flex-shrink:0;}
+  .workspace-item{display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:12px;width:100%;text-align:left;color:var(--text2);margin-bottom:2px;}
+  .workspace-item.active{background:var(--amber-soft);color:var(--amber);}
+
+  .decision-card{padding:26px;margin-bottom:16px;position:relative;overflow:hidden;border:1px solid rgba(124,111,240,0.35);}
+  .decision-card::before{content:'';position:absolute;inset:0;background:radial-gradient(circle at 15% 0%, rgba(124,111,240,0.16), transparent 60%);pointer-events:none;}
+  .decision-line{display:flex;align-items:center;gap:10px;font-size:13.5px;color:var(--text2);padding:5px 0;}
+  .decision-conclusion{margin-top:14px;padding-top:14px;border-top:1px solid rgba(255,255,255,.08);font-size:16px;font-weight:600;font-family:'Space Grotesk','Inter',sans-serif;}
+
+  .dash-grid{display:grid;gap:16px;}
+  .dash-grid.cols-2{grid-template-columns:repeat(2,1fr);}
+  .dash-grid.cols-3{grid-template-columns:repeat(3,1fr);}
+  .dash-grid.cols-auto{grid-template-columns:repeat(auto-fit,minmax(300px,1fr));}
+  @media(max-width:860px){.dash-grid.cols-2,.dash-grid.cols-3{grid-template-columns:1fr;}}
+  .dash-block{min-width:0;position:relative;}
+  .dash-block.full{grid-column:1/-1;}
+  .dash-block.editing{outline:2px dashed rgba(124,111,240,0.45);outline-offset:4px;border-radius:26px;cursor:grab;}
+  .dash-block.drag-over{outline:2px solid var(--violet);}
+  .dash-hide-btn{position:absolute;top:10px;right:10px;z-index:5;width:24px;height:24px;border-radius:99px;
+    background:rgba(8,9,12,.85);display:flex;align-items:center;justify-content:center;border:1px solid var(--panel-border);}
+  .hidden-panel{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:16px;padding:12px 16px;border-radius:14px;
+    background:rgba(255,255,255,.02);border:1px dashed var(--panel-border);}
+  .hidden-chip{display:flex;align-items:center;gap:6px;font-size:11.5px;padding:5px 10px;border-radius:99px;background:rgba(255,255,255,.05);color:var(--text2);}
+
+  .inline-edit-input{width:100%;background:rgba(124,111,240,0.08);border:1px solid var(--violet);border-radius:8px;
+    padding:4px 8px;font-size:inherit;}
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="https://unpkg.com/lucide@0.383.0/dist/umd/lucide.js"></script>
+<script>
+/* ================================================================== */
+/* Atlas V3 — Personal Investment Operating System (standalone)        */
+/* Multi-account · Rebalancing · Retirement · Market (mock)            */
+/* ================================================================== */
+const STORAGE_KEY = 'atlas-state-v4';
+
+const COLORS = {
+  bg:'#08090C', violet:'#7C6FF0', violetSoft:'rgba(124,111,240,0.16)',
+  mint:'#34D399', mintSoft:'rgba(52,211,153,0.14)',
+  red:'#F87171', redSoft:'rgba(248,113,113,0.14)',
+  amber:'#E8B44C', amberSoft:'rgba(232,180,76,0.14)',
+  text:'#F3F4F6', text2:'#9AA0AC', muted:'#5B6270'
+};
+const PALETTE = ['#7C6FF0','#E8B44C','#34D399','#60A5FA','#F472B6','#F87171','#38BDF8','#A78BFA'];
+
+const MANAGERS = ['TIME','TIGER','ACE','KODEX','SOL','HANARO'];
+const CATEGORIES = ['S&P500','Nasdaq100','Bond','Gold','Dividend','REIT'];
+
+const NAV_GROUPS = [
+  { label:'개요', items:[
+    { id:'dashboard', label:'Dashboard', icon:'layout-dashboard' },
+    { id:'portfolio', label:'Portfolio', icon:'pie-chart' },
+  ]},
+  { label:'투자 관리', items:[
+    { id:'transactions', label:'Transactions', icon:'arrow-left-right' },
+    { id:'rebalancing', label:'Rebalancing', icon:'scale' },
+    { id:'compare', label:'ETF Compare', icon:'git-compare' },
+    { id:'watchlist', label:'Watchlist', icon:'eye' },
+  ]},
+  { label:'계획', items:[
+    { id:'calendar', label:'Calendar', icon:'calendar' },
+    { id:'statistics', label:'Statistics', icon:'bar-chart-3' },
+    { id:'retirement', label:'Retirement', icon:'landmark' },
+  ]},
+  { label:'기록 · 시장', items:[
+    { id:'journal', label:'Journal', icon:'book-open' },
+    { id:'market', label:'Market', icon:'activity' },
+  ]},
+  { label:'', items:[
+    { id:'settings', label:'Settings', icon:'settings' },
+  ]},
+];
+const NAV = NAV_GROUPS.flatMap(g=>g.items);
+const MISSION_ITEMS = ['이번 달 투자 진행률 확인','목표비중 확인','투자일지 작성','ETF 현재가 업데이트','원칙 준수 확인'];
+
+/* ---------------- utils ---------------- */
+const won = n => { const v = Math.round(n||0); return (v<0?'-':'') + Math.abs(v).toLocaleString('ko-KR') + '원'; };
+const pct = (n,d=1) => (n||0).toFixed(d) + '%';
+const uid = () => Math.random().toString(36).slice(2,10);
+const todayStr = () => new Date().toISOString().slice(0,10);
+const esc = s => String(s==null?'':s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const clamp = (n,lo,hi) => Math.min(hi, Math.max(lo,n));
+
+function monthsBetween(d1, d2){
+  let m = (d2.getFullYear()-d1.getFullYear())*12 + (d2.getMonth()-d1.getMonth());
+  if(d2.getDate() < d1.getDate()) m -= 1;
+  return Math.max(0, m);
+}
+function hashStr(s){ let h=0; for(let i=0;i<s.length;i++){ h=(h*31+s.charCodeAt(i))|0; } return Math.abs(h); }
+function mockMetric(seed, min, max, decimals){
+  const x = Math.abs(Math.sin(seed*12.9898)*43758.5453) % 1;
+  return +(min + x*(max-min)).toFixed(decimals);
+}
+
+/* ================================================================== */
+/* Provider layer — mock implementations today, real APIs later.       */
+/* Keeping this seam makes it a one-file swap when KIS/OpenAI/Claude   */
+/* API keys are available; nothing else in the app needs to change.    */
+/* ================================================================== */
+const AccountProvider = {
+  list(){ return state.accounts; },
+  get(id){ return state.accounts.find(a=>a.id===id); },
+  updateCash(id, val){ state.accounts = state.accounts.map(a=>a.id===id?{...a,cash:Number(val)}:a); }
+};
+const MarketProvider = {
+  // Mock snapshot. Replace with a real market-data API call (returns the same shape).
+  getSnapshot(){
+    return [
+      { id:'sp500', label:'S&P 500', value:'5,847.32', change:'+0.42%', up:true },
+      { id:'nasdaq', label:'Nasdaq 100', value:'20,912.15', change:'-0.18%', up:false },
+      { id:'vix', label:'VIX', value:'14.2', change:'-2.1%', up:false },
+      { id:'ust10y', label:'미국 10년채', value:'4.18%', change:'+0.03%p', up:true },
+      { id:'dxy', label:'Dollar Index', value:'103.4', change:'+0.11%', up:true },
+      { id:'feargreed', label:'Fear & Greed', value:'58 (Neutral)', change:'', up:null },
+    ];
+  }
+};
+const ETFProvider = {
+  // Mock issuer comparison, deterministic per manager+category (not random API calls).
+  compare(category){
+    return MANAGERS.map(manager=>{
+      const seed = hashStr(manager+category);
+      return {
+        manager,
+        name:`${manager} ${category}`,
+        return1y: mockMetric(seed+1, 12, 22, 1),
+        expenseRatio: mockMetric(seed+2, 0.03, 0.35, 2),
+        aum: Math.round(mockMetric(seed+3, 300, 6000, 0)),
+        tracking: mockMetric(seed+4, 0.02, 0.15, 2),
+        volume: Math.round(mockMetric(seed+5, 5, 60, 1)),
+      };
+    });
+  }
+};
+const AIProvider = {
+  // Mock advisor reasoning built from the current recommendation engine output.
+  getAdvice(d){ return d.recommendation.reason; }
+};
+
+/* ---------------- core computations ---------------- */
+function computeHoldings(etfs, transactions, totalAssets){
+  return etfs.map(h => {
+    const txs = transactions.filter(t=>t.etfId===h.id).slice().sort((a,b)=>new Date(a.date)-new Date(b.date));
+    let qty=0, avg=0, realizedPnl=0, totalDividends=0, cumulativeBuy=0, cumulativeSell=0;
+    txs.forEach(t=>{
+      if(t.type==='buy'){
+        const newQty = qty + Number(t.quantity);
+        avg = newQty>0 ? (avg*qty + Number(t.price)*Number(t.quantity))/newQty : 0;
+        qty = newQty;
+        cumulativeBuy += Number(t.price)*Number(t.quantity);
+      } else if(t.type==='sell'){
+        const sellQty = Math.min(qty, Number(t.quantity));
+        realizedPnl += (Number(t.price) - avg) * sellQty;
+        cumulativeSell += Number(t.price) * sellQty;
+        qty = Math.max(0, qty - Number(t.quantity));
+        if(qty===0) avg = 0;
+      } else if(t.type==='dividend'){
+        totalDividends += Number(t.amount||0);
+      }
+    });
+    const evalAmount = qty * h.currentPrice;
+    const effectiveAvg = (h.avgManual!=null && h.avgManual!=='') ? Number(h.avgManual) : avg;
+    const costBasis = qty * effectiveAvg;
+    const pnl = evalAmount - costBasis;
+    const pnlPct = costBasis>0 ? (pnl/costBasis)*100 : 0;
+    const targetAmount = (totalAssets * h.targetWeight)/100;
+    const achievement = targetAmount>0 ? (evalAmount/targetAmount)*100 : 0;
+    const remainingToTarget = Math.max(0, targetAmount - evalAmount);
+    return {...h, qty, avg:effectiveAvg, avgComputed:avg, evalAmount, costBasis, pnl, pnlPct, targetAmount, achievement,
+      remainingToTarget, realizedPnl, totalDividends, cumulativeBuy, cumulativeSell};
+  });
+}
+
+function computeDCPlan(holdings, settings, totalAssets){
+  const stockHoldings = holdings.filter(h=>h.assetClass!=='bond');
+  const bondHoldings = holdings.filter(h=>h.assetClass==='bond');
+  const stockTarget = stockHoldings.reduce((s,h)=>s+h.targetAmount,0);
+  const bondTarget = bondHoldings.reduce((s,h)=>s+h.targetAmount,0);
+  const stockCurrent = stockHoldings.reduce((s,h)=>s+h.evalAmount,0);
+  const bondCurrent = bondHoldings.reduce((s,h)=>s+h.evalAmount,0);
+  const stockWeight = totalAssets>0 ? (stockCurrent/totalAssets)*100 : 0;
+  const bondWeight = totalAssets>0 ? (bondCurrent/totalAssets)*100 : 0;
+  const evalTotal = stockCurrent + bondCurrent;
+  const investedRatio = totalAssets>0 ? (evalTotal/totalAssets)*100 : 0;
+  const remainingCash = Math.max(0, totalAssets - evalTotal);
+  const remainingStockTarget = Math.max(0, stockTarget - stockCurrent);
+  const bondAchievement = bondTarget>0 ? (bondCurrent/bondTarget)*100 : 0;
+
+  const start = new Date(settings.planStartDate || todayStr());
+  const now = new Date();
+  const elapsedMonths = monthsBetween(start, now);
+  const remainingMonths = Math.max(0, settings.planMonths - elapsedMonths);
+
+  const milestones = [ {months:1,target:50}, {months:3,target:70}, {months:6,target:100} ];
+  let expectedPct = 100;
+  if(elapsedMonths <= 0){ expectedPct = 0; }
+  else {
+    let prev = {months:0, target:0};
+    for(const m of milestones){
+      if(elapsedMonths <= m.months){
+        const span = (m.months - prev.months) || 1;
+        const ratio = clamp((elapsedMonths - prev.months)/span, 0, 1);
+        expectedPct = prev.target + (m.target - prev.target)*ratio;
+        break;
+      }
+      prev = m;
+    }
+  }
+
+  return { stockTarget, bondTarget, stockCurrent, bondCurrent, stockWeight, bondWeight,
+    evalTotal, investedRatio, remainingCash, remainingStockTarget, bondAchievement,
+    elapsedMonths, remainingMonths, milestones, expectedPct };
+}
+
+function computeRecommendation(holdings, plan, totalAssets){
+  const remainingMonths = plan.remainingMonths > 0 ? plan.remainingMonths : 1;
+  const monthlyAmount = Math.max(0, Math.round(plan.remainingCash / remainingMonths));
+  const gaps = holdings.map(h => ({ id:h.id, name:h.name, gap: Math.max(0, h.targetAmount - h.evalAmount) }));
+  const gapSum = gaps.reduce((s,g)=>s+g.gap, 0);
+  const allocations = gaps.map(g => ({
+    ...g,
+    amount: (gapSum>0 && monthlyAmount>0) ? Math.round((monthlyAmount * (g.gap/gapSum))/10000)*10000 : 0
+  }));
+  const cashRatio = totalAssets>0 ? (plan.remainingCash/totalAssets)*100 : 0;
+  let reason;
+  if(monthlyAmount<=0){
+    reason = '현재 목표 비중에 근접했습니다. 추가 매수보다는 리밸런싱 여부를 점검하세요.';
+  } else if(cashRatio>55){
+    reason = `현재 현금비중이 높습니다. ${plan.remainingMonths}개월 투자 계획을 유지하기 위해 이번 달에는 약 ${won(monthlyAmount)}을 분할 매수하는 것을 권장합니다.`;
+  } else {
+    reason = `계획대로 잘 진행되고 있습니다. 이번 달 약 ${won(monthlyAmount)} 매수로 목표 비중을 향해 나아가세요.`;
+  }
+  return { monthlyAmount, allocations, reason, remainingMonths: plan.remainingMonths };
+}
+
+function computeScoreV2({holdings, cash, mission, totalAssets, settings, plan}){
+  const weightDiffs = holdings.map(h=>{
+    const cw = totalAssets>0 ? (h.evalAmount/totalAssets)*100 : 0;
+    return Math.abs(cw - h.targetWeight);
+  });
+  const avgDiff = weightDiffs.reduce((a,b)=>a+b,0)/(weightDiffs.length||1);
+  const balanceScore = clamp(15 - avgDiff*0.75, 0, 15);
+
+  const weights = holdings.map(h => totalAssets>0 ? (h.evalAmount/totalAssets)*100 : 0);
+  const maxWeight = weights.length ? Math.max(...weights) : 0;
+  const riskScore = clamp(15 - Math.max(0, maxWeight-50)*0.5, 0, 15);
+
+  const cashRatio = totalAssets>0 ? (cash/totalAssets)*100 : 0;
+  const idealCash = clamp(100 - plan.expectedPct, 0, 100);
+  const cashScore = clamp(15 - Math.abs(cashRatio-idealCash)*0.3, 0, 15);
+
+  const checkedCount = mission.checks.filter(Boolean).length;
+  const disciplineScore = (checkedCount/MISSION_ITEMS.length)*15;
+
+  const activeCount = holdings.filter(h=>h.evalAmount>0).length;
+  const diversifyScore = clamp((activeCount/(holdings.length||1))*15, 0, 15);
+
+  const maxDiff = weightDiffs.length ? Math.max(...weightDiffs) : 0;
+  const rebalanceScore = maxDiff<=settings.rebalanceThreshold ? 15 : clamp(15 - (maxDiff-settings.rebalanceThreshold)*2, 0, 15);
+
+  const overallTarget = holdings.reduce((s,h)=>s+h.targetAmount,0);
+  const overallEval = holdings.reduce((s,h)=>s+h.evalAmount,0);
+  const goalScore = overallTarget>0 ? clamp((overallEval/overallTarget)*10, 0, 10) : 0;
+
+  const total = Math.round(balanceScore+riskScore+cashScore+disciplineScore+diversifyScore+rebalanceScore+goalScore);
+  return {
+    balanceScore:Math.round(balanceScore), riskScore:Math.round(riskScore), cashScore:Math.round(cashScore),
+    disciplineScore:Math.round(disciplineScore), diversifyScore:Math.round(diversifyScore),
+    rebalanceScore:Math.round(rebalanceScore), goalScore:Math.round(goalScore), total
+  };
+}
+
+function computeHealth(total){
+  if(total>=85) return { label:'Healthy', color:COLORS.mint, icon:'shield-check' };
+  if(total>=65) return { label:'Good', color:COLORS.violet, icon:'shield-check' };
+  if(total>=45) return { label:'Warning', color:COLORS.amber, icon:'shield-alert' };
+  return { label:'Danger', color:COLORS.red, icon:'shield-x' };
+}
+
+function computeRebalance(holdings, totalAssets, threshold){
+  return holdings.map(h=>{
+    const currentWeight = totalAssets>0 ? (h.evalAmount/totalAssets)*100 : 0;
+    const diff = currentWeight - h.targetWeight;
+    const needsRebalance = Math.abs(diff) > threshold;
+    const amount = Math.round(Math.abs(diff)/100 * totalAssets);
+    const action = diff > 0.01 ? 'sell' : (diff < -0.01 ? 'buy' : 'hold');
+    return { ...h, currentWeight, diff, needsRebalance, amount, action };
+  });
+}
+
+function computeRetirementSeries(settings, totalAssets, maxAge){
+  const months = Math.max(0, (maxAge - settings.currentAge)*12);
+  const monthlyRate = (settings.expectedReturn/100)/12;
+  const contribution = settings.monthlyContribution || 0;
+  let balance = totalAssets;
+  const points = [{ age:settings.currentAge, value:Math.round(balance) }];
+  let monthCounter = 0;
+  for(let age=settings.currentAge+1; age<=maxAge; age++){
+    for(let m=0; m<12 && monthCounter<months; m++, monthCounter++){
+      balance = balance*(1+monthlyRate) + contribution;
+    }
+    points.push({ age, value:Math.round(balance) });
+  }
+  return points;
+}
+function valueAtAge(points, age){
+  const p = points.find(p=>p.age===age);
+  return p ? p.value : points[points.length-1].value;
+}
+
+function renderMarkdown(text){
+  if(!text) return '';
+  return text.split('\n').map(line=>{
+    if(line.startsWith('### ')) return `<h4>${esc(line.slice(4))}</h4>`;
+    if(line.startsWith('## ')) return `<h3>${esc(line.slice(3))}</h3>`;
+    if(line.startsWith('# ')) return `<h2>${esc(line.slice(2))}</h2>`;
+    if(line.startsWith('- ')) return `<li>${inline(line.slice(2))}</li>`;
+    if(line.trim()==='') return '<div style="height:8px"></div>';
+    return `<p>${inline(line)}</p>`;
+  }).join('');
+}
+function inline(str){
+  const parts = str.split(/(\*\*[^*]+\*\*)/g);
+  return parts.map(p => (p.startsWith('**')&&p.endsWith('**')) ? `<strong>${esc(p.slice(2,-2))}</strong>` : esc(p)).join('');
+}
+
+/* ---------------- seed data ---------------- */
+function defaultState(){
+  return {
+    page:'dashboard',
+    activeAccount:'all',
+    accounts:[
+      { id:'pension', name:'연금저축', broker:'NH', cash:25000000 },
+      { id:'irp', name:'IRP', broker:'미래에셋', cash:12812580 },
+      { id:'dc', name:'DC', broker:'미래에셋', cash:80000000 },
+    ],
+    etfs:[
+      { id:'sp500', name:'TIME 미국S&P500 액티브', manager:'TIME', category:'S&P500', targetWeight:35, currentPrice:13114, assetClass:'equity', expenseRatio:0.09, color:'#7C6FF0', memo:'', reason:'핵심 성장 자산', avgManual:null },
+      { id:'nasdaq', name:'TIME 미국나스닥100 액티브', manager:'TIME', category:'Nasdaq100', targetWeight:35, currentPrice:14200, assetClass:'equity', expenseRatio:0.09, color:'#E8B44C', memo:'', reason:'고성장 기술주 노출', avgManual:null },
+      { id:'bond', name:'KODEX 종합채권', manager:'KODEX', category:'Bond', targetWeight:30, currentPrice:10150, assetClass:'bond', expenseRatio:0.05, color:'#34D399', memo:'', reason:'변동성 완충', avgManual:null },
+    ],
+    transactions:[
+      { id:'t1', accountId:'dc', date:'2026-06-10', etfId:'sp500', type:'buy', price:12500, quantity:126, memo:'초기 매수' },
+    ],
+    journal:[
+      { id:'j1', date:'2026-06-01', tags:['원칙'], content:'# 원칙\n\n- 매달 정해진 날짜에만 매수한다\n- 뉴스에 흔들리지 않는다\n- 목표 비중에서 ±5% 벗어나면 리밸런싱을 검토한다\n\nAtlas는 **수익률**이 아니라 **원칙**을 기록하기 위한 공간이다.' }
+    ],
+    watchlist:[
+      { id:'w1', name:'TIGER 미국S&P500', targetPrice:12000, currentPrice:12450, memo:'조정 시 신규 편입 검토' }
+    ],
+    calendarEvents:[
+      { id:'ce1', date:'2026-12-28', type:'yearend', title:'연말 포트폴리오 점검', memo:'' }
+    ],
+    compareNotes:{},
+    mission:{ date:todayStr(), checks:[false,false,false,false,false] },
+    settings:{
+      currentAge:35,
+      targetRetireAge:55,
+      targetAsset:1000000000,
+      expectedReturn:7,
+      monthlyContribution:2000000,
+      rebalanceThreshold:5,
+      planMonths:6,
+      planStartDate:'2026-06-01'
+    },
+    ui:{ journalActiveId:'j1', journalPreview:false, journalSearch:'', pendingTxEtf:null, pendingTxType:null, pendingTxAccount:null, etfAddOpen:false, calendarMonth:todayStr().slice(0,7), compareCategory:'S&P500',
+      editMode:false, dashboardLayout:'auto', dashboardOrder:['accountOverview','statusStrip','statsRow','dcPlan','score','mission','advisor','recommend','health','timeline'], dashboardHidden:[] }
+  };
+}
+
+function loadState(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(!raw) return defaultState();
+    const saved = JSON.parse(raw);
+    const base = defaultState();
+    const merged = {
+      ...base, ...saved,
+      settings:{...base.settings, ...(saved.settings||{})},
+      ui:{...base.ui, ...(saved.ui||{})},
+      compareNotes:{...(saved.compareNotes||{})}
+    };
+    if(!merged.mission || !Array.isArray(merged.mission.checks) || merged.mission.checks.length!==MISSION_ITEMS.length || merged.mission.date!==todayStr()){
+      merged.mission = { date:todayStr(), checks:MISSION_ITEMS.map(()=>false) };
+    }
+    if(!merged.ui.journalActiveId && merged.journal[0]) merged.ui.journalActiveId = merged.journal[0].id;
+    if(!merged.ui.calendarMonth) merged.ui.calendarMonth = todayStr().slice(0,7);
+    if(!Array.isArray(merged.ui.dashboardOrder) || merged.ui.dashboardOrder.length===0) merged.ui.dashboardOrder = base.ui.dashboardOrder.slice();
+    base.ui.dashboardOrder.forEach(k=>{ if(!merged.ui.dashboardOrder.includes(k)) merged.ui.dashboardOrder.push(k); });
+    if(!Array.isArray(merged.ui.dashboardHidden)) merged.ui.dashboardHidden = [];
+    return merged;
+  }catch(e){
+    return defaultState();
+  }
+}
+function saveState(){
+  try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }catch(e){ console.error('save failed', e); }
+}
+
+let state = loadState();
+let txFormType = 'buy';
+let gaugeChart = null;
+let donutChart = null;
+let retireChart = null;
+let statsChart = null;
+let statsRows = [];
+
+/* ---------------- derived data (account-scoped) ---------------- */
+function getDerived(scopeId){
+  scopeId = scopeId || state.activeAccount;
+  const txs = scopeId==='all' ? state.transactions : state.transactions.filter(t=>t.accountId===scopeId);
+  const cash = scopeId==='all' ? state.accounts.reduce((s,a)=>s+a.cash,0) : ((state.accounts.find(a=>a.id===scopeId)||{}).cash||0);
+  const evalRaw = computeHoldings(state.etfs, txs, 0).reduce((s,h)=>s+h.evalAmount,0);
+  const totalAssets = cash + evalRaw;
+  const holdings = computeHoldings(state.etfs, txs, totalAssets);
+  const evalTotal = holdings.reduce((s,h)=>s+h.evalAmount,0);
+  const plan = computeDCPlan(holdings, state.settings, totalAssets);
+  const score = computeScoreV2({ holdings, cash, mission:state.mission, totalAssets, settings:state.settings, plan });
+  const health = computeHealth(score.total);
+  const recommendation = computeRecommendation(holdings, plan, totalAssets);
+  const rebalance = computeRebalance(holdings, totalAssets, state.settings.rebalanceThreshold);
+  return { scopeId, txs, cash, totalAssets, holdings, evalTotal, plan, score, health, recommendation, rebalance };
+}
+
+/* ================================================================== */
+/* Actions                                                              */
+/* ================================================================== */
+function setPage(id){ state.page = id; saveState(); render(); }
+function setActiveAccount(id){ state.activeAccount = id; saveState(); render(); }
+
+function toggleCheck(i){
+  const checks = state.mission.checks.slice();
+  checks[i] = !checks[i];
+  state.mission = { date:todayStr(), checks };
+  saveState(); render();
+}
+
+function setTxType(t){
+  txFormType = t;
+  ['buy','sell','dividend'].forEach(k=>{
+    const el = document.getElementById('tx-type-'+k);
+    if(el) el.classList.toggle('active', t===k);
+  });
+  const priceWrap = document.getElementById('tx-price-wrap');
+  const qtyWrap = document.getElementById('tx-qty-wrap');
+  const amtWrap = document.getElementById('tx-amount-wrap');
+  if(priceWrap && qtyWrap && amtWrap){
+    const isDiv = t==='dividend';
+    priceWrap.style.display = isDiv ? 'none' : 'block';
+    qtyWrap.style.display = isDiv ? 'none' : 'block';
+    amtWrap.style.display = isDiv ? 'block' : 'none';
+  }
+}
+
+function submitTx(){
+  const date = document.getElementById('tx-date').value || todayStr();
+  const etfId = document.getElementById('tx-etf').value;
+  const accountId = document.getElementById('tx-account').value;
+  const memo = document.getElementById('tx-memo').value;
+  if(txFormType==='dividend'){
+    const amount = Number(document.getElementById('tx-amount').value);
+    if(!amount) return;
+    state.transactions.push({ id:uid(), accountId, date, etfId, type:'dividend', amount, memo });
+  } else {
+    const price = Number(document.getElementById('tx-price').value);
+    const quantity = Number(document.getElementById('tx-qty').value);
+    if(!price || !quantity) return;
+    state.transactions.push({ id:uid(), accountId, date, etfId, type:txFormType, price, quantity, memo });
+  }
+  saveState(); render();
+}
+function deleteTx(id){
+  state.transactions = state.transactions.filter(t=>t.id!==id);
+  saveState(); render();
+}
+
+function startEditPrice(id){
+  document.getElementById('price-display-'+id).style.display = 'none';
+  document.getElementById('price-edit-'+id).style.display = 'flex';
+  const inp = document.getElementById('price-input-'+id);
+  inp.focus(); inp.select();
+}
+function cancelEditPrice(id){
+  document.getElementById('price-display-'+id).style.display = 'flex';
+  document.getElementById('price-edit-'+id).style.display = 'none';
+}
+function saveEditPrice(id){
+  const val = Number(document.getElementById('price-input-'+id).value);
+  state.etfs = state.etfs.map(h => h.id===id ? {...h, currentPrice:val} : h);
+  saveState(); render();
+}
+function saveEditPriceDirect(id, val){
+  state.etfs = state.etfs.map(h => h.id===id ? {...h, currentPrice:Number(val)} : h);
+  saveState(); render();
+}
+
+function quickTx(etfId, type){
+  state.ui.pendingTxEtf = etfId;
+  state.ui.pendingTxType = type;
+  state.ui.pendingTxAccount = state.activeAccount!=='all' ? state.activeAccount : null;
+  state.page = 'transactions';
+  saveState(); render();
+}
+function quickAction(type){
+  if(type==='buy'){ quickTx(state.etfs[0] ? state.etfs[0].id : null, 'buy'); return; }
+  if(type==='sell'){ quickTx(state.etfs[0] ? state.etfs[0].id : null, 'sell'); return; }
+  if(type==='price'){ setPage('portfolio'); return; }
+  if(type==='journal'){ state.page='journal'; saveState(); render(); newJournalEntry(); return; }
+  if(type==='etf'){ state.page='portfolio'; state.ui.etfAddOpen=true; saveState(); render(); return; }
+}
+
+function deleteEtf(id){
+  if(!confirm('이 ETF와 관련된 모든 거래 기록도 함께 삭제됩니다. 계속할까요?')) return;
+  state.etfs = state.etfs.filter(h=>h.id!==id);
+  state.transactions = state.transactions.filter(t=>t.etfId!==id);
+  saveState(); render();
+}
+function toggleEtfAdd(){ state.ui.etfAddOpen = !state.ui.etfAddOpen; render(); }
+function submitEtfAdd(){
+  const name = document.getElementById('new-etf-name').value.trim();
+  const weight = Number(document.getElementById('new-etf-weight').value);
+  const price = Number(document.getElementById('new-etf-price').value);
+  const assetClass = document.getElementById('new-etf-class').value;
+  const manager = document.getElementById('new-etf-manager').value;
+  const category = document.getElementById('new-etf-category').value;
+  const expenseRatio = Number(document.getElementById('new-etf-expense').value) || 0;
+  const reason = document.getElementById('new-etf-reason').value;
+  if(!name) return;
+  const color = PALETTE[state.etfs.length % PALETTE.length];
+  state.etfs.push({ id:uid(), name, manager, category, targetWeight:weight||0, currentPrice:price||0, assetClass, expenseRatio, color, memo:'', reason });
+  state.ui.etfAddOpen = false;
+  saveState(); render();
+}
+function updateEtfField(id, key, val){
+  const numeric = ['targetWeight','currentPrice','expenseRatio'];
+  state.etfs = state.etfs.map(h => h.id===id ? {...h, [key]: numeric.includes(key) ? Number(val) : val} : h);
+  saveState();
+}
+function commitEtfField(){ render(); }
+
+function newJournalEntry(){
+  const e = { id:uid(), date:todayStr(), tags:[], content:'' };
+  state.journal.unshift(e);
+  state.ui.journalActiveId = e.id;
+  state.ui.journalPreview = false;
+  saveState(); render();
+  const ta = document.getElementById('journal-textarea');
+  if(ta) ta.focus();
+}
+function selectJournal(id){ state.ui.journalActiveId = id; state.ui.journalPreview = false; saveState(); render(); }
+function toggleJournalPreview(){ state.ui.journalPreview = !state.ui.journalPreview; saveState(); render(); }
+function onJournalInput(val){ const e = state.journal.find(e=>e.id===state.ui.journalActiveId); if(e){ e.content = val; saveState(); } }
+function onJournalTags(val){ const e = state.journal.find(e=>e.id===state.ui.journalActiveId); if(e){ e.tags = val.split(',').map(t=>t.trim()).filter(Boolean); saveState(); } }
+function onJournalSearch(val){ state.ui.journalSearch = val; render(); }
+function deleteJournal(id){
+  state.journal = state.journal.filter(e=>e.id!==id);
+  if(state.ui.journalActiveId===id) state.ui.journalActiveId = state.journal[0]?.id || null;
+  saveState(); render();
+}
+
+function updateSettingField(key, val){
+  state.settings[key] = (key==='planStartDate') ? val : Number(val);
+  saveState(); render();
+}
+function updateAccountCash(id, val){
+  AccountProvider.updateCash(id, val);
+  saveState(); render();
+}
+function onWeightInput(id, val){
+  val = Number(val);
+  state.etfs = state.etfs.map(h => h.id===id ? {...h, targetWeight:val} : h);
+  const label = document.getElementById('weight-label-'+id);
+  if(label) label.textContent = val + '%';
+  const sum = state.etfs.reduce((s,h)=>s+h.targetWeight,0);
+  const badge = document.getElementById('weight-sum-badge');
+  if(badge){
+    badge.textContent = '합계 ' + sum + '%';
+    badge.style.background = sum===100 ? COLORS.mintSoft : COLORS.redSoft;
+    badge.style.color = sum===100 ? COLORS.mint : COLORS.red;
+  }
+  const warn = document.getElementById('weight-warn');
+  if(warn) warn.style.display = sum===100 ? 'none' : 'block';
+  saveState();
+}
+function onWeightChange(){ render(); }
+
+function addWatchItem(){
+  const name = document.getElementById('watch-name').value.trim();
+  const targetPrice = Number(document.getElementById('watch-target').value);
+  const currentPrice = Number(document.getElementById('watch-current').value);
+  const memo = document.getElementById('watch-memo').value;
+  if(!name) return;
+  state.watchlist.push({ id:uid(), name, targetPrice:targetPrice||0, currentPrice:currentPrice||0, memo });
+  saveState(); render();
+}
+function updateWatchField(id, key, val){
+  const numeric = ['targetPrice','currentPrice'];
+  state.watchlist = state.watchlist.map(w => w.id===id ? {...w, [key]: numeric.includes(key)?Number(val):val} : w);
+  saveState();
+}
+function deleteWatchItem(id){ state.watchlist = state.watchlist.filter(w=>w.id!==id); saveState(); render(); }
+
+function calShiftMonth(delta){
+  const [y,m] = state.ui.calendarMonth.split('-').map(Number);
+  const d = new Date(y, m-1+delta, 1);
+  state.ui.calendarMonth = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0');
+  saveState(); render();
+}
+function addCalendarEvent(){
+  const date = document.getElementById('cal-event-date').value;
+  const type = document.getElementById('cal-event-type').value;
+  const title = document.getElementById('cal-event-title').value.trim();
+  if(!date || !title) return;
+  state.calendarEvents.push({ id:uid(), date, type, title, memo:'' });
+  saveState(); render();
+}
+function deleteCalendarEvent(id){ state.calendarEvents = state.calendarEvents.filter(e=>e.id!==id); saveState(); render(); }
+
+function setCompareCategory(cat){ state.ui.compareCategory = cat; saveState(); render(); }
+function onCompareNote(key, val){ state.compareNotes[key] = val; saveState(); }
+
+function exportJson(){
+  const blob = new Blob([JSON.stringify(state, null, 2)], { type:'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `atlas-backup-${todayStr()}.json`;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+function importJson(input){
+  const file = input.files && input.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try{
+      const data = JSON.parse(e.target.result);
+      if(!data.settings || !data.etfs) throw new Error('invalid file');
+      state = { ...defaultState(), ...data };
+      saveState(); render();
+      alert('불러오기가 완료되었습니다.');
+    }catch(err){
+      alert('올바른 Atlas 백업 파일이 아닙니다.');
+    }
+  };
+  reader.readAsText(file);
+  input.value = '';
+}
+function exportCsv(){
+  const nameOf = id => (state.etfs.find(h=>h.id===id)||{}).name || id;
+  const accOf = id => (state.accounts.find(a=>a.id===id)||{}).name || id;
+  const rows = [['날짜','계좌','ETF','유형','가격','수량','금액','메모']];
+  state.transactions.slice().sort((a,b)=>new Date(a.date)-new Date(b.date)).forEach(t=>{
+    const typeLabel = t.type==='buy'?'매수':t.type==='sell'?'매도':'배당';
+    const amount = t.type==='dividend' ? t.amount : (t.price*t.quantity);
+    rows.push([t.date, accOf(t.accountId), nameOf(t.etfId), typeLabel, t.price||'', t.quantity||'', amount, t.memo||'']);
+  });
+  const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob = new Blob(['\uFEFF'+csv], { type:'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `atlas-transactions-${todayStr()}.csv`;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+/* ================================================================== */
+/* V4 — Edit Mode, inline editing, dashboard customization, workspace   */
+/* ================================================================== */
+function toggleEditMode(on){
+  state.ui.editMode = on;
+  saveState(); render();
+}
+function setDashboardLayout(layout){
+  state.ui.dashboardLayout = layout;
+  saveState(); render();
+}
+function hideCard(cardId){
+  if(!state.ui.dashboardHidden.includes(cardId)) state.ui.dashboardHidden.push(cardId);
+  saveState(); render();
+}
+function showCard(cardId){
+  state.ui.dashboardHidden = state.ui.dashboardHidden.filter(id=>id!==cardId);
+  saveState(); render();
+}
+let draggedCardId = null;
+function dragStartCard(ev, cardId){
+  if(!state.ui.editMode){ ev.preventDefault(); return; }
+  draggedCardId = cardId;
+  ev.dataTransfer.effectAllowed = 'move';
+}
+function dragOverCard(ev, cardId){
+  if(!state.ui.editMode) return;
+  ev.preventDefault();
+  const el = document.getElementById('block-'+cardId);
+  if(el) el.classList.add('drag-over');
+}
+function dragLeaveCard(cardId){
+  const el = document.getElementById('block-'+cardId);
+  if(el) el.classList.remove('drag-over');
+}
+function dropCard(ev, targetId){
+  ev.preventDefault();
+  const el = document.getElementById('block-'+targetId);
+  if(el) el.classList.remove('drag-over');
+  if(!draggedCardId || draggedCardId===targetId) return;
+  const order = state.ui.dashboardOrder.slice();
+  const from = order.indexOf(draggedCardId);
+  const to = order.indexOf(targetId);
+  if(from<0 || to<0) return;
+  order.splice(from,1);
+  order.splice(to,0,draggedCardId);
+  state.ui.dashboardOrder = order;
+  draggedCardId = null;
+  saveState(); render();
+}
+
+// Generic inline-edit renderer: plain text in View mode, live input in Edit mode.
+function editableValue(rawValue, formatted, onChangeCall, opts){
+  opts = opts || {};
+  if(!state.ui.editMode) return `<span class="mono">${formatted}</span>`;
+  const step = opts.step || 1;
+  const width = opts.width || '100%';
+  return `<input type="number" class="mono inline-edit-input" style="width:${width}" value="${rawValue}" step="${step}"
+    onkeydown="if(event.key==='Enter'){ event.preventDefault(); this.blur(); }"
+    onchange="${onChangeCall}" />`;
+}
+
+function updateEtfAvgOverride(id, val){
+  state.etfs = state.etfs.map(h => h.id===id ? {...h, avgManual: (val===''? null : Number(val))} : h);
+  saveState(); render();
+}
+function resetEtfAvgOverride(id){
+  state.etfs = state.etfs.map(h => h.id===id ? {...h, avgManual:null} : h);
+  saveState(); render();
+}
+function updateEtfTargetAmount(id, amountVal, totalAssets){
+  const w = totalAssets>0 ? (Number(amountVal)/totalAssets)*100 : 0;
+  state.etfs = state.etfs.map(h => h.id===id ? {...h, targetWeight: +w.toFixed(2)} : h);
+  saveState(); render();
+}
+
+function goWorkspace(name){
+  if(name==='home'){ state.page='dashboard'; state.activeAccount='all'; }
+  else if(name==='dc'){ state.page='dashboard'; state.activeAccount='dc'; }
+  else if(name==='market'){ state.page='market'; }
+  else if(name==='retirement'){ state.page='retirement'; }
+  else if(name==='settings'){ state.page='settings'; }
+  saveState(); render();
+}
+function currentWorkspace(){
+  if(state.page==='dashboard' && state.activeAccount==='dc') return 'dc';
+  if(state.page==='dashboard') return 'home';
+  if(state.page==='market') return 'market';
+  if(state.page==='retirement') return 'retirement';
+  if(state.page==='settings') return 'settings';
+  return null;
+}
+
+/* ================================================================== */
+/* Render                                                                */
+/* ================================================================== */
+function render(){
+  const d = getDerived();
+  const root = document.getElementById('root');
+  root.innerHTML = `
+    ${renderSidebar()}
+    <main>${pageContent(d)}</main>
+    ${renderTabbar()}
+  `;
+  if(window.lucide) lucide.createIcons();
+  if(state.page==='dashboard') initGaugeChart(d.score, d.health);
+  if(state.page==='portfolio') initDonutChart(d.holdings, d.cash, d.totalAssets);
+  if(state.page==='retirement') initRetireChart(d.totalAssets);
+  if(state.page==='statistics') initStatsChart();
+  if(state.page==='transactions'){
+    txFormType = state.ui.pendingTxType || txFormType;
+    setTxType(txFormType);
+    if(state.ui.pendingTxEtf || state.ui.pendingTxType || state.ui.pendingTxAccount){
+      state.ui.pendingTxEtf = null; state.ui.pendingTxType = null; state.ui.pendingTxAccount = null;
+      saveState();
+    }
+  }
+}
+
+function renderSidebar(){
+  const ws = currentWorkspace();
+  const workspaces = [
+    ['home','Home','home'], ['dc','DC','landmark'], ['market','Market','activity'],
+    ['retirement','Retirement','flag'], ['settings','Settings','settings'],
+  ];
+  const workspaceBox = `<div class="workspace-box">
+    <div class="nav-group-label" style="padding-top:0">Workspace</div>
+    ${workspaces.map(([id,label,icon])=>`<button class="workspace-item ${ws===id?'active':''}" onclick="goWorkspace('${id}')">
+      <i data-lucide="${icon}" style="width:15px;height:15px;color:${ws===id?COLORS.amber:COLORS.muted}"></i>
+      <span class="label">${label}</span>
+    </button>`).join('')}
+  </div>`;
+  const groups = NAV_GROUPS.map(g=>{
+    const items = g.items.map(item=>{
+      const active = state.page===item.id;
+      return `<button class="nav-item ${active?'active':''}" onclick="setPage('${item.id}')">
+        <i data-lucide="${item.icon}" style="width:16px;height:16px;color:${active?COLORS.violet:COLORS.muted}"></i>
+        <span class="label">${item.label}</span>
+      </button>`;
+    }).join('');
+    return `${g.label?`<div class="nav-group-label">${g.label}</div>`:''}${items}`;
+  }).join('');
+  return `
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark"><i data-lucide="compass" style="width:18px;height:18px;color:#0A0B0F"></i></div>
+      <div><div class="brand-name font-display">Atlas</div><div class="brand-sub">Investment OS</div></div>
+    </div>
+    <nav class="nav-scroll">${workspaceBox}${groups}</nav>
+    <div class="sidebar-footer">"수익률을 보는 앱이 아니라<br/>원칙대로 투자하는 앱."</div>
+  </aside>`;
+}
+
+function renderTabbar(){
+  const items = NAV.map(item=>{
+    const active = state.page===item.id;
+    return `<button class="tab-item ${active?'active':''}" onclick="setPage('${item.id}')">
+      <i data-lucide="${item.icon}" style="width:16px;height:16px"></i>
+      <span style="font-size:8.5px">${item.label}</span>
+    </button>`;
+  }).join('');
+  return `<nav class="tabbar">${items}</nav>`;
+}
+
+function topbar(title, sub){
+  const dateStr = new Date().toLocaleDateString('ko-KR', { year:'numeric', month:'long', day:'numeric', weekday:'long' });
+  const layoutSwitch = (state.page==='dashboard' && state.ui.editMode) ? `
+    <div class="layout-switch">
+      <button class="${state.ui.dashboardLayout==='2'?'active':''}" onclick="setDashboardLayout('2')">2열</button>
+      <button class="${state.ui.dashboardLayout==='3'?'active':''}" onclick="setDashboardLayout('3')">3열</button>
+      <button class="${state.ui.dashboardLayout==='auto'?'active':''}" onclick="setDashboardLayout('auto')">Auto</button>
+    </div>` : '';
+  return `<div class="topbar">
+    <div><h1 class="font-display">${title}</h1><p>${sub}</p></div>
+    <div class="mode-toggle">
+      <div class="date mono">${dateStr}</div>
+      ${layoutSwitch}
+      <div class="mode-switch">
+        <button class="${!state.ui.editMode?'active':''}" onclick="toggleEditMode(false)">View</button>
+        <button class="${state.ui.editMode?'active':''}" onclick="toggleEditMode(true)">Edit</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function pageContent(d){
+  switch(state.page){
+    case 'dashboard': return renderDashboard(d);
+    case 'portfolio': return renderPortfolio(d);
+    case 'transactions': return renderTransactions(d);
+    case 'rebalancing': return renderRebalancing(d);
+    case 'compare': return renderCompare();
+    case 'watchlist': return renderWatchlist();
+    case 'calendar': return renderCalendar();
+    case 'statistics': return renderStatistics(d);
+    case 'journal': return renderJournal();
+    case 'retirement': return renderRetirement(d);
+    case 'market': return renderMarket();
+    case 'settings': return renderSettings(d);
+    default: return '';
+  }
+}
+
+/* ---------------- dashboard ---------------- */
+function accountTabs(){
+  const tabs = [{id:'all',name:'ALL'}, ...state.accounts];
+  return `<div class="account-tabs">
+    ${tabs.map(a=>`<button class="account-tab ${state.activeAccount===a.id?'active':''}" onclick="setActiveAccount('${a.id}')">${esc(a.name)}</button>`).join('')}
+  </div>`;
+}
+
+function accountOverview(){
+  const cards = state.accounts.map(a=>{
+    const dd = getDerived(a.id);
+    const gain = dd.holdings.reduce((s,h)=>s+h.pnl,0) >= 0;
+    const overallPnlPct = (() => {
+      const cost = dd.holdings.reduce((s,h)=>s+h.costBasis,0);
+      const pnl = dd.holdings.reduce((s,h)=>s+h.pnl,0);
+      return cost>0 ? (pnl/cost)*100 : 0;
+    })();
+    return `<div class="glass account-card">
+      <div class="row-between">
+        <div><div class="acc-name">${esc(a.name)}</div><div class="acc-broker">${esc(a.broker)}</div></div>
+        <span class="mono" style="font-size:11.5px;color:${overallPnlPct>=0?COLORS.mint:COLORS.red}">${pct(overallPnlPct)}</span>
+      </div>
+      <div class="acc-row"><span>현재 자산</span><b>${won(dd.totalAssets)}</b></div>
+      <div class="acc-row" style="align-items:center"><span>예수금</span><b style="min-width:120px;text-align:right">${editableValue(a.cash, won(dd.cash), `updateAccountCash('${a.id}', this.value)`, {step:10000, width:'130px'})}</b></div>
+      <div class="acc-row"><span>평가금액</span><b>${won(dd.evalTotal)}</b></div>
+    </div>`;
+  }).join('');
+  const totalAll = getDerived('all');
+  return `<div class="glass" style="padding:20px;margin-bottom:16px">
+    <div class="row-between" style="margin-bottom:12px">
+      <div class="eyebrow" style="margin:0">Account Overview</div>
+      <span class="mono" style="font-size:12.5px;color:${COLORS.text2}">전체 합산 ${won(totalAll.totalAssets)}</span>
+    </div>
+    <div class="grid grid-3">${cards}</div>
+  </div>`;
+}
+
+function cioStrip(d){
+  const pills = [
+    { icon:d.health.icon, label:'Portfolio Health', value:d.health.label, color:d.health.color },
+    { icon:'target', label:'Investment Score', value:d.score.total+'점', color:COLORS.violet },
+    { icon:'wallet', label:'Cash Position', value:won(d.cash), color:COLORS.mint },
+    { icon:'flag', label:'Goal Progress', value:pct(d.score.goalScore/10*100,0), color:COLORS.amber },
+    { icon:'activity', label:'Market Status', value:'정상 변동성', color:COLORS.text2 },
+  ];
+  return `<div class="cio-strip">
+    ${pills.map(p=>`<div class="glass cio-pill">
+      <i data-lucide="${p.icon}" style="width:15px;height:15px;color:${p.color};flex-shrink:0"></i>
+      <div><div class="cio-label">${p.label}</div><div class="cio-value mono">${p.value}</div></div>
+    </div>`).join('')}
+  </div>`;
+}
+
+function quickActionRow(){
+  const actions = [
+    ['plus-circle','+ 매수 입력','buy'], ['pencil','+ 현재가 수정','price'],
+    ['list-plus','+ ETF 추가','etf'], ['book-open','+ Journal 작성','journal'],
+  ];
+  return `<div class="quick-row">
+    ${actions.map(([icon,label,type])=>`<button class="quick-btn" onclick="quickAction('${type}')"><i data-lucide="${icon}" style="width:14px;height:14px"></i>${label}</button>`).join('')}
+  </div>`;
+}
+
+function statCard(eyebrow, value, icon, accent){
+  return `<div class="glass stat-card">
+    <div class="stat-top">
+      <div class="eyebrow">${eyebrow}</div>
+      <div class="icon-badge" style="background:${accent}22"><i data-lucide="${icon}" style="width:15px;height:15px;color:${accent}"></i></div>
+    </div>
+    <div class="stat-value mono">${value}</div>
+  </div>`;
+}
+
+function decisionCenterCard(d){
+  const alloc = d.recommendation.allocations.filter(a=>a.amount>0);
+  const buyLine = alloc.length ? `이번 달 매수 예정 · ${alloc.map(a=>esc(a.name)).join(', ')}` : '오늘 매수 없음';
+  const progressLine = `이번 달 투자 진행률 ${pct(d.plan.investedRatio,0)}`;
+  const gapSorted = d.rebalance.slice().sort((a,b)=>a.diff-b.diff);
+  const worst = gapSorted[0];
+  let gapLine = '';
+  if(worst && Math.abs(worst.diff) > 0.5){
+    gapLine = `${esc(worst.name)} 목표보다 ${pct(Math.abs(worst.diff),0)} ${worst.diff<0?'부족':'초과'}`;
+  }
+  const scoreLine = `Investment Score ${d.score.total}점 (${d.health.label})`;
+  let conclusion;
+  if(d.recommendation.monthlyAmount<=0) conclusion = '목표 비중에 근접했습니다. 리밸런싱 여부만 점검하세요.';
+  else if(worst && Math.abs(worst.diff) > state.settings.rebalanceThreshold) conclusion = '리밸런싱을 검토할 시점입니다.';
+  else conclusion = '예정된 계획을 유지하세요.';
+  const lines = [buyLine, progressLine];
+  if(gapLine) lines.push(gapLine);
+  lines.push(scoreLine);
+  return `<div class="glass decision-card">
+    <div class="eyebrow" style="position:relative;margin-bottom:10px">Decision Center</div>
+    <div style="position:relative">
+      ${lines.map(l=>`<div class="decision-line"><i data-lucide="chevron-right" style="width:13px;height:13px;color:${COLORS.violet};flex-shrink:0"></i>${l}</div>`).join('')}
+      <div class="decision-conclusion">"${conclusion}"</div>
+    </div>
+  </div>`;
+}
+
+/* Dashboard card registry — every entry here is user-reorderable and hideable in Edit Mode. */
+const CARD_REGISTRY = {
+  accountOverview: { title:'Account Overview', full:true, render: () => accountOverview() },
+  statusStrip: { title:'Status Strip', full:true, render: (d) => cioStrip(d) },
+  statsRow: { title:'총자산 · 예수금 · 평가금액', full:true, render: (d) => `<div class="grid grid-3">
+    ${statCard('총 자산', won(d.totalAssets), 'wallet', COLORS.violet)}
+    ${statCard('현재 예수금', won(d.cash), 'wallet', COLORS.mint)}
+    ${statCard('평가금액', won(d.evalTotal), 'target', COLORS.amber)}
+  </div>` },
+  dcPlan: { title:'DC Investment Plan', full:true, render: (d) => dcPlanCard(d) },
+  score: { title:'Investment Score', full:false, render: (d) => scoreCard(d) },
+  mission: { title:"Today's Mission", full:false, render: () => missionCard() },
+  advisor: { title:'AI Advisor', full:false, render: (d) => advisorCard(d) },
+  recommend: { title:'Recommended Purchase', full:false, render: (d) => recommendCard(d) },
+  health: { title:'Portfolio Health', full:false, render: (d) => healthCard(d) },
+  timeline: { title:'Investment Timeline', full:true, render: (d) => timelineCard(d) },
+};
+
+function renderDashboard(d){
+  const order = state.ui.dashboardOrder.filter(id => CARD_REGISTRY[id]);
+  const hidden = state.ui.dashboardHidden;
+  const visible = order.filter(id => !hidden.includes(id));
+  const editing = state.ui.editMode;
+
+  const hiddenPanel = (editing && hidden.length>0) ? `<div class="hidden-panel">
+    <span style="font-size:11px;color:${COLORS.muted}">숨긴 카드 — 눌러서 다시 표시:</span>
+    ${hidden.filter(id=>CARD_REGISTRY[id]).map(id=>`<button class="hidden-chip" onclick="showCard('${id}')">
+      <i data-lucide="plus" style="width:11px;height:11px"></i>${CARD_REGISTRY[id].title}
+    </button>`).join('')}
+  </div>` : '';
+
+  const blocks = visible.map(id => {
+    const card = CARD_REGISTRY[id];
+    const dragAttrs = editing
+      ? `draggable="true" ondragstart="dragStartCard(event,'${id}')" ondragover="dragOverCard(event,'${id}')" ondragleave="dragLeaveCard('${id}')" ondrop="dropCard(event,'${id}')"`
+      : '';
+    const hideBtn = editing ? `<button class="dash-hide-btn" onclick="hideCard('${id}')" title="카드 숨기기"><i data-lucide="x" style="width:12px;height:12px;color:${COLORS.muted}"></i></button>` : '';
+    return `<div id="block-${id}" class="dash-block ${card.full?'full':''} ${editing?'editing':''}" ${dragAttrs}>
+      ${hideBtn}
+      ${card.render(d)}
+    </div>`;
+  }).join('');
+
+  return `
+  ${topbar('Dashboard','오늘도 원칙을 지키는 하루')}
+  ${decisionCenterCard(d)}
+  ${accountTabs()}
+  ${quickActionRow()}
+  ${hiddenPanel}
+  <div class="dash-grid cols-${state.ui.dashboardLayout}">${blocks}</div>
+  `;
+}
+
+function dcPlanCard(d){
+  const p = d.plan;
+  const items = [
+    ['총 자산', won(d.totalAssets)], ['총 예수금', won(d.cash)],
+    ['주식 목표금액', won(p.stockTarget)], ['채권 목표금액', won(p.bondTarget)],
+    ['현재 주식비중', pct(p.stockWeight)], ['현재 채권비중', pct(p.bondWeight)],
+    ['현재 투자율', pct(p.investedRatio)], ['남은 투자금', won(p.remainingCash)],
+    ['남은 주식 목표금액', won(p.remainingStockTarget)], ['채권 목표 달성률', pct(p.bondAchievement,0)],
+  ];
+  return `<div class="glass" style="padding:24px">
+    <div class="row-between">
+      <div>
+        <div class="eyebrow">DC Investment Plan</div>
+        <div style="font-size:15px;font-weight:500">${state.settings.planMonths}개월 분할 투자 계획 · 경과 ${p.elapsedMonths}개월</div>
+      </div>
+      <span class="badge mono" style="background:${COLORS.violetSoft};color:${COLORS.violet}">남은 ${p.remainingMonths}개월</span>
+    </div>
+    <div class="dc-grid">${items.map(([label,val])=>`<div class="dc-item"><div class="dc-label">${label}</div><div class="dc-value mono">${val}</div></div>`).join('')}</div>
+    <div style="margin-top:6px">
+      <div class="row-between" style="margin-bottom:4px"><span style="font-size:11px;color:${COLORS.muted}">주식 목표 진행률</span><span class="mono" style="font-size:11px;color:${COLORS.text2}">${pct(p.stockTarget>0?(p.stockCurrent/p.stockTarget)*100:0,0)}</span></div>
+      <div class="progress-track" style="margin-bottom:12px"><div class="progress-fill" style="width:${clamp(p.stockTarget>0?(p.stockCurrent/p.stockTarget)*100:0,0,100)}%;background:${COLORS.violet}"></div></div>
+      <div class="row-between" style="margin-bottom:4px"><span style="font-size:11px;color:${COLORS.muted}">채권 목표 진행률</span><span class="mono" style="font-size:11px;color:${COLORS.text2}">${pct(p.bondAchievement,0)}</span></div>
+      <div class="progress-track"><div class="progress-fill" style="width:${clamp(p.bondAchievement,0,100)}%;background:${COLORS.mint}"></div></div>
+    </div>
+  </div>`;
+}
+
+function scoreCard(d){
+  const factors = [
+    ['Portfolio Balance', d.score.balanceScore, 15], ['Risk', d.score.riskScore, 15],
+    ['Cash Management', d.score.cashScore, 15], ['Investment Discipline', d.score.disciplineScore, 15],
+    ['Diversification', d.score.diversifyScore, 15], ['Rebalancing', d.score.rebalanceScore, 15],
+    ['Goal Progress', d.score.goalScore, 10],
+  ];
+  return `<div class="glass" style="padding:22px;position:relative;overflow:hidden">
+    <div class="row-between" style="margin-bottom:2px">
+      <div class="eyebrow">Investment Score</div>
+      <span style="font-size:10.5px;color:${COLORS.muted}" class="mono">Mock 계산</span>
+    </div>
+    <div class="gauge-wrap">
+      <canvas id="gauge-canvas"></canvas>
+      <div class="gauge-center">
+        <div class="mono" style="font-size:30px;font-weight:700;line-height:1">${d.score.total}</div>
+        <div style="font-size:10px;color:${d.health.color};margin-top:4px;font-weight:600">${d.health.label}</div>
+      </div>
+    </div>
+    <div style="margin-top:8px">
+      ${factors.map(([name,val,max])=>`
+        <div class="factor-row">
+          <span class="factor-name">${name}</span>
+          <div class="progress-track"><div class="progress-fill" style="width:${clamp((val/max)*100,0,100)}%;background:${COLORS.violet}"></div></div>
+          <span class="factor-val mono">${val}/${max}</span>
+        </div>`).join('')}
+    </div>
+  </div>`;
+}
+
+function missionCard(){
+  const done = state.mission.checks.filter(Boolean).length;
+  return `<div class="glass" style="padding:24px">
+    <div class="row-between" style="margin-bottom:16px">
+      <div><div class="eyebrow">Today's Mission</div><div style="font-size:15px;font-weight:500">오늘의 원칙 체크리스트</div></div>
+      <div class="badge mono" style="background:${done===MISSION_ITEMS.length?COLORS.mintSoft:COLORS.violetSoft};color:${done===MISSION_ITEMS.length?COLORS.mint:COLORS.violet}">${done}/${MISSION_ITEMS.length}</div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:5px">
+      ${MISSION_ITEMS.map((label,i)=>{
+        const checked = state.mission.checks[i];
+        return `<button class="mission-item ${checked?'done':''}" onclick="toggleCheck(${i})">
+          <i data-lucide="${checked?'check-circle-2':'circle'}" style="width:18px;height:18px;color:${checked?COLORS.mint:COLORS.muted}"></i>
+          <span>${label}</span>
+        </button>`;
+      }).join('')}
+    </div>
+  </div>`;
+}
+
+function advisorCard(d){
+  const alloc = d.recommendation.allocations.filter(a=>a.amount>0);
+  const advice = AIProvider.getAdvice(d);
+  return `<div class="glass" style="padding:24px">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+      <i data-lucide="sparkles" style="width:15px;height:15px;color:${COLORS.amber}"></i>
+      <div class="eyebrow" style="margin:0">AI Advisor</div>
+      <span style="font-size:10px;padding:2px 6px;border-radius:4px;background:rgba(255,255,255,.06);color:${COLORS.muted}">MOCK</span>
+    </div>
+    <p style="font-size:13.5px;line-height:1.7;color:${COLORS.text};margin:0 0 10px">Good Morning.<br/>${advice}</p>
+    ${alloc.length ? `<div style="margin-bottom:12px">${alloc.map(a=>`
+      <div class="row-between" style="font-size:12px;padding:3px 0"><span style="color:${COLORS.text2}">${esc(a.name)}</span><span class="mono">${won(a.amount)}</span></div>`).join('')}</div>` : ''}
+    <div class="row-between" style="padding-top:12px;border-top:1px solid var(--panel-border)">
+      <span style="font-size:12px;color:${COLORS.muted}">Investment Score</span>
+      <span class="mono" style="font-size:15px;font-weight:600;color:${COLORS.amber}">${d.score.total}점</span>
+    </div>
+  </div>`;
+}
+
+function recommendCard(d){
+  const alloc = d.recommendation.allocations;
+  return `<div class="glass" style="padding:24px">
+    <div class="eyebrow">Recommended Purchase</div>
+    <div class="row-between" style="margin-bottom:8px">
+      <div style="font-size:15px;font-weight:500">이번 달 권장 매수</div>
+      <div class="mono" style="font-size:19px;font-weight:700;color:${COLORS.violet}">${won(d.recommendation.monthlyAmount)}</div>
+    </div>
+    <div style="margin-bottom:14px">
+      ${alloc.map(a=>`<div class="rec-item">
+        <div style="display:flex;align-items:center;gap:10px">
+          <span class="rec-dot" style="background:${(state.etfs.find(h=>h.id===a.id)||{}).color||COLORS.muted}"></span>
+          <span style="font-size:13px;color:${COLORS.text2}">${esc(a.name)}</span>
+        </div>
+        <span class="mono" style="font-size:13px">${a.amount>0 ? won(a.amount) : '이번 달 매수 없음'}</span>
+      </div>`).join('')}
+    </div>
+    <div style="font-size:12px;line-height:1.6;color:${COLORS.muted};padding-top:12px;border-top:1px solid var(--panel-border)">
+      남은 계획 ${d.recommendation.remainingMonths}개월 · ${d.recommendation.reason}
+    </div>
+  </div>`;
+}
+
+function healthCard(d){
+  return `<div class="glass" style="padding:24px;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;gap:10px">
+    <div class="eyebrow" style="align-self:flex-start">Portfolio Health</div>
+    <i data-lucide="${d.health.icon}" style="width:34px;height:34px;color:${d.health.color}"></i>
+    <div class="health-badge" style="background:${d.health.color}22;color:${d.health.color}">${d.health.label}</div>
+    <div class="mono" style="font-size:22px;font-weight:700">${d.score.total}점</div>
+    <div style="font-size:11.5px;color:${COLORS.muted}">7개 지표 종합 평가</div>
+  </div>`;
+}
+
+function timelineCard(d){
+  const p = d.plan;
+  const totalMonths = state.settings.planMonths || 6;
+  const fillPct = clamp(p.investedRatio, 0, 100);
+  return `<div class="glass" style="padding:24px 24px 30px">
+    <div class="row-between" style="margin-bottom:4px">
+      <div><div class="eyebrow">Investment Timeline</div><div style="font-size:15px;font-weight:500">${totalMonths}개월 분할 투자 일정</div></div>
+      <span class="mono" style="font-size:12.5px;color:${COLORS.text2}">현재 진행률 ${pct(fillPct,0)}</span>
+    </div>
+    <div class="timeline-wrap">
+      <div class="timeline-track">
+        <div class="timeline-fill" style="width:${fillPct}%"></div>
+        ${p.milestones.map(m=>{
+          const left = clamp((m.months/totalMonths)*100,0,100);
+          const reached = p.elapsedMonths >= m.months;
+          return `<div class="timeline-marker ${reached?'reached':''}" style="left:${left}%"></div>
+            <div class="timeline-label" style="left:${left}%"><div class="tl-month">${m.months}개월</div><div class="tl-target">목표 ${m.target}%</div></div>`;
+        }).join('')}
+      </div>
+    </div>
+  </div>`;
+}
+
+function initGaugeChart(score, health){
+  const el = document.getElementById('gauge-canvas');
+  if(!el) return;
+  if(gaugeChart) gaugeChart.destroy();
+  gaugeChart = new Chart(el, {
+    type:'doughnut',
+    data:{ datasets:[{ data:[score.total, 100-score.total], backgroundColor:[health.color,'rgba(255,255,255,0.06)'], borderWidth:0 }] },
+    options:{ responsive:true, maintainAspectRatio:false, cutout:'76%', circumference:360, rotation:0,
+      plugins:{ legend:{display:false}, tooltip:{enabled:false} } }
+  });
+}
+
+/* ---------------- portfolio ---------------- */
+function progressBar(current, target, color){
+  const p = Math.min(100, (current/(target||1))*100);
+  const over = current > target + (target*0.03);
+  return `<div class="progress-track"><div class="progress-fill" style="width:${Math.min(100,p)}%;background:${over?COLORS.amber:(color||COLORS.violet)}"></div></div>`;
+}
+
+function renderPortfolio(d){
+  return `
+  ${topbar('Portfolio','목표 비중 대비 현재 배분 상태')}
+  ${accountTabs()}
+  <div class="grid grid-portfolio">
+    <div class="glass" style="padding:24px">
+      <div class="eyebrow">현재 비중</div>
+      <div style="font-size:15px;font-weight:500;margin-bottom:8px">자산 배분 현황</div>
+      <div style="position:relative;height:220px">
+        <canvas id="donut-canvas"></canvas>
+        <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none">
+          <div style="font-size:11px;color:${COLORS.muted}">총 자산</div>
+          <div class="mono" style="font-size:16px;font-weight:600">${won(d.totalAssets)}</div>
+        </div>
+      </div>
+      <div id="donut-legend" style="display:flex;flex-direction:column;gap:8px;margin-top:12px"></div>
+    </div>
+    <div>
+      <div class="row-between" style="margin-bottom:12px">
+        <div style="font-size:13px;color:${COLORS.muted}">${d.holdings.length}개 ETF · ${state.activeAccount==='all'?'전체 계좌':(state.accounts.find(a=>a.id===state.activeAccount)||{}).name}</div>
+        <button class="btn btn-soft btn-sm" onclick="toggleEtfAdd()"><i data-lucide="plus" style="width:13px;height:13px"></i>ETF 추가</button>
+      </div>
+      ${state.ui.etfAddOpen ? etfAddForm() : ''}
+      <div class="etf-grid">${d.holdings.map(h=>etfCard(h, d.totalAssets)).join('')}</div>
+    </div>
+  </div>`;
+}
+
+function etfAddForm(){
+  return `<div class="glass" style="padding:18px;margin-bottom:16px">
+    <div class="etfmaster-grid">
+      <div class="field"><label>ETF명</label><div class="field-input"><input id="new-etf-name" type="text" placeholder="예: TIME 미국리츠" /></div></div>
+      <div class="field"><label>운용사</label><div class="field-input"><select id="new-etf-manager">${MANAGERS.map(m=>`<option value="${m}">${m}</option>`).join('')}</select></div></div>
+      <div class="field"><label>ETF 종류</label><div class="field-input"><select id="new-etf-category">${CATEGORIES.map(c=>`<option value="${c}">${c}</option>`).join('')}</select></div></div>
+      <div class="field"><label>목표 비중</label><div class="field-input"><input id="new-etf-weight" type="number" placeholder="0" /><span class="field-suffix">%</span></div></div>
+      <div class="field"><label>현재가</label><div class="field-input"><input id="new-etf-price" type="number" placeholder="0" /><span class="field-suffix">원</span></div></div>
+      <div class="field"><label>총보수</label><div class="field-input"><input id="new-etf-expense" type="number" step="0.01" placeholder="0.09" /><span class="field-suffix">%</span></div></div>
+      <div class="field"><label>자산군</label><div class="field-input"><select id="new-etf-class"><option value="equity">주식</option><option value="bond">채권</option></select></div></div>
+      <div class="field" style="grid-column:1/-1"><label>투자 이유</label><div class="field-input"><input id="new-etf-reason" type="text" placeholder="선택" /></div></div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <button class="btn btn-primary" onclick="submitEtfAdd()"><i data-lucide="check" style="width:14px;height:14px"></i>추가</button>
+      <button class="btn btn-ghost" onclick="toggleEtfAdd()">취소</button>
+    </div>
+  </div>`;
+}
+
+function etfCard(h, totalAssets){
+  const gain = h.pnl >= 0;
+  const weightDisplay = editableValue(h.targetWeight, h.targetWeight+'%', `updateEtfField('${h.id}','targetWeight',this.value);commitEtfField()`, {step:1, width:'60px'});
+  return `<div class="glass" style="padding:20px">
+    <div class="row-between" style="align-items:flex-start;margin-bottom:12px">
+      <div style="display:flex;align-items:center;gap:8px">
+        <span class="color-dot" style="background:${h.color||COLORS.violet}"></span>
+        <div>
+          <div style="font-size:14.5px;font-weight:600">${esc(h.name)}</div>
+          <div style="font-size:11.5px;color:${COLORS.muted};margin-top:2px;display:flex;align-items:center;gap:4px">목표 비중 ${weightDisplay} · ${h.assetClass==='bond'?'채권':'주식'}</div>
+        </div>
+      </div>
+      <div class="mono" style="font-size:12px;padding:4px 8px;border-radius:8px;display:flex;align-items:center;gap:4px;background:${gain?COLORS.mintSoft:COLORS.redSoft};color:${gain?COLORS.mint:COLORS.red}">
+        <i data-lucide="${gain?'trending-up':'trending-down'}" style="width:12px;height:12px"></i>${pct(h.pnlPct)}
+      </div>
+    </div>
+    <div class="etf-tagrow"><span>${esc(h.manager||'-')}</span><span>${esc(h.category||'-')}</span><span>총보수 ${h.expenseRatio||0}%</span></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;row-gap:12px;column-gap:16px;margin:14px 0">
+      <div>
+        <div style="font-size:11px;color:${COLORS.muted}">현재가</div>
+        ${state.ui.editMode ? `
+        <div style="margin-top:2px">${editableValue(h.currentPrice, won(h.currentPrice), `saveEditPriceDirect('${h.id}', this.value)`, {step:10, width:'110px'})}</div>
+        ` : `
+        <div id="price-display-${h.id}" style="display:flex;align-items:center;gap:6px;margin-top:2px">
+          <span class="mono" style="font-size:13.5px">${won(h.currentPrice)}</span>
+          <button onclick="startEditPrice('${h.id}')"><i data-lucide="pencil" style="width:11px;height:11px;color:${COLORS.muted}"></i></button>
+        </div>
+        <div id="price-edit-${h.id}" style="display:none;align-items:center;gap:6px;margin-top:2px">
+          <input id="price-input-${h.id}" type="number" value="${h.currentPrice}" class="mono"
+            style="width:96px;background:transparent;border:none;border-bottom:1px solid ${COLORS.violet};outline:none;font-size:13.5px;padding:2px 0" />
+          <button onclick="saveEditPrice('${h.id}')"><i data-lucide="check" style="width:14px;height:14px;color:${COLORS.mint}"></i></button>
+          <button onclick="cancelEditPrice('${h.id}')"><i data-lucide="x" style="width:14px;height:14px;color:${COLORS.muted}"></i></button>
+        </div>`}
+      </div>
+      <div>
+        <div style="font-size:11px;color:${COLORS.muted}">평균단가${h.avgManual!=null?` <span style="color:${COLORS.amber}">(수동)</span>`:''}</div>
+        <div class="mono" style="font-size:13.5px;margin-top:2px;display:flex;align-items:center;gap:6px">
+          ${editableValue(h.avg, won(h.avg), `updateEtfAvgOverride('${h.id}', this.value)`, {step:10, width:'110px'})}
+          ${(state.ui.editMode && h.avgManual!=null) ? `<button onclick="resetEtfAvgOverride('${h.id}')" title="자동 계산으로 되돌리기"><i data-lucide="rotate-ccw" style="width:11px;height:11px;color:${COLORS.muted}"></i></button>` : ''}
+        </div>
+      </div>
+      <div><div style="font-size:11px;color:${COLORS.muted}">수량</div><div class="mono" style="font-size:13.5px;margin-top:2px">${h.qty.toLocaleString('ko-KR')}주</div></div>
+      <div><div style="font-size:11px;color:${COLORS.muted}">손익</div><div class="mono" style="font-size:13.5px;margin-top:2px;color:${gain?COLORS.mint:COLORS.red}">${won(h.pnl)}</div></div>
+      <div><div style="font-size:11px;color:${COLORS.muted}">평가금액</div><div class="mono" style="font-size:13.5px;margin-top:2px">${won(h.evalAmount)}</div></div>
+      <div><div style="font-size:11px;color:${COLORS.muted}">남은 목표금액</div><div class="mono" style="font-size:13.5px;margin-top:2px">${won(h.remainingToTarget)}</div></div>
+    </div>
+    ${h.reason ? `<div class="etf-meta">💡 ${esc(h.reason)}</div>` : ''}
+    <div style="padding-top:12px;border-top:1px solid var(--panel-border);margin-top:12px">
+      <div class="row-between" style="margin-bottom:6px">
+        <span style="font-size:11px;color:${COLORS.muted}">평가금액 / 목표금액</span>
+        <span class="mono" style="font-size:11.5px;color:${COLORS.text2};display:flex;align-items:center;gap:4px">${won(h.evalAmount)} / ${editableValue(Math.round(h.targetAmount), won(h.targetAmount), `updateEtfTargetAmount('${h.id}', this.value, ${totalAssets||0})`, {step:10000, width:'120px'})}</span>
+      </div>
+      ${progressBar(h.evalAmount, h.targetAmount, h.color)}
+      <div class="mono" style="text-align:right;font-size:11px;color:${COLORS.muted};margin-top:4px">달성률 ${pct(h.achievement,0)}</div>
+    </div>
+    <div class="etf-actions">
+      <button class="btn btn-soft btn-sm" onclick="quickTx('${h.id}','buy')"><i data-lucide="plus" style="width:12px;height:12px"></i>매수</button>
+      <button class="btn btn-ghost btn-sm" onclick="quickTx('${h.id}','sell')"><i data-lucide="minus" style="width:12px;height:12px"></i>매도</button>
+      <button class="btn btn-ghost btn-sm" onclick="setPage('settings')"><i data-lucide="pencil" style="width:12px;height:12px"></i>ETF 수정</button>
+      <button class="btn btn-danger btn-sm" onclick="deleteEtf('${h.id}')"><i data-lucide="trash-2" style="width:12px;height:12px"></i>삭제</button>
+    </div>
+  </div>`;
+}
+
+function initDonutChart(holdings, cash, totalAssets){
+  const el = document.getElementById('donut-canvas');
+  if(!el) return;
+  if(donutChart) donutChart.destroy();
+  const data = [...holdings.map(h=>({name:h.name,value:h.evalAmount,color:h.color})), {name:'예수금',value:cash,color:'#4B5563'}]
+    .filter(d=>d.value>0);
+  donutChart = new Chart(el, {
+    type:'doughnut',
+    data:{ labels:data.map(d=>d.name), datasets:[{ data:data.map(d=>d.value), backgroundColor:data.map(d=>d.color), borderWidth:0 }] },
+    options:{ responsive:true, maintainAspectRatio:false, cutout:'62%', plugins:{ legend:{display:false}, tooltip:{enabled:true} } }
+  });
+  const legend = document.getElementById('donut-legend');
+  if(legend){
+    legend.innerHTML = data.map(d=>`
+      <div class="row-between" style="font-size:12.5px">
+        <div style="display:flex;align-items:center;gap:8px"><span style="width:10px;height:10px;border-radius:99px;background:${d.color};display:inline-block"></span><span style="color:${COLORS.text2}">${esc(d.name)}</span></div>
+        <span class="mono">${pct((d.value/totalAssets)*100)}</span>
+      </div>`).join('');
+  }
+}
+
+/* ---------------- transactions ---------------- */
+function renderTransactions(d){
+  const accOptions = state.accounts.map(a=>`<option value="${a.id}" ${state.ui.pendingTxAccount===a.id?'selected':''}>${esc(a.name)}</option>`).join('');
+  const etfOptions = state.etfs.map(h=>`<option value="${h.id}" ${state.ui.pendingTxEtf===h.id?'selected':''}>${esc(h.name)}</option>`).join('');
+  const sorted = d.txs.slice().sort((a,b)=>new Date(b.date)-new Date(a.date));
+  const nameOf = id => (state.etfs.find(h=>h.id===id)||{}).name || id;
+  const accNameOf = id => (state.accounts.find(a=>a.id===id)||{}).name || id;
+  const cumulativeBuy = d.holdings.reduce((s,h)=>s+h.cumulativeBuy,0);
+  const realizedPnl = d.holdings.reduce((s,h)=>s+h.realizedPnl,0);
+  const totalDividends = d.holdings.reduce((s,h)=>s+h.totalDividends,0);
+
+  return `
+  ${topbar('Transactions','매수 · 매도 · 배당 기록, 평균단가와 손익은 자동 계산됩니다')}
+  ${accountTabs()}
+  <div class="grid grid-3" style="margin-bottom:16px">
+    ${statCard('누적 매수금액', won(cumulativeBuy), 'arrow-left-right', COLORS.violet)}
+    ${statCard('누적 실현손익', won(realizedPnl), 'trending-up', realizedPnl>=0?COLORS.mint:COLORS.red)}
+    ${statCard('누적 배당금', won(totalDividends), 'coins', COLORS.amber)}
+  </div>
+  <div class="glass" style="padding:24px;margin-bottom:24px">
+    <div class="row-between">
+      <div class="eyebrow">새 거래 입력</div>
+      <button class="btn btn-ghost btn-sm" onclick="exportCsv()"><i data-lucide="download" style="width:12px;height:12px"></i>CSV 내보내기</button>
+    </div>
+    <div class="tx-toggle">
+      <button id="tx-type-buy" class="buy" onclick="setTxType('buy')">매수</button>
+      <button id="tx-type-sell" class="sell" onclick="setTxType('sell')">매도</button>
+      <button id="tx-type-dividend" class="dividend" onclick="setTxType('dividend')">배당</button>
+    </div>
+    <div class="grid" style="grid-template-columns:repeat(2,1fr);gap:12px">
+      <div class="field"><label>날짜</label><div class="field-input"><input id="tx-date" type="date" value="${todayStr()}" /></div></div>
+      <div class="field"><label>계좌</label><div class="field-input"><select id="tx-account">${accOptions}</select></div></div>
+      <div class="field"><label>ETF</label><div class="field-input"><select id="tx-etf">${etfOptions}</select></div></div>
+      <div class="field" id="tx-price-wrap"><label>가격</label><div class="field-input"><input id="tx-price" type="number" placeholder="0" /></div></div>
+      <div class="field" id="tx-qty-wrap"><label>수량</label><div class="field-input"><input id="tx-qty" type="number" placeholder="0" /></div></div>
+      <div class="field" id="tx-amount-wrap" style="display:none"><label>배당금액</label><div class="field-input"><input id="tx-amount" type="number" placeholder="0" /><span class="field-suffix">원</span></div></div>
+      <div class="field" style="grid-column:span 2"><label>메모</label><div class="field-input"><input id="tx-memo" type="text" placeholder="선택" /></div></div>
+    </div>
+    <button class="btn btn-primary" style="margin-top:16px" onclick="submitTx()"><i data-lucide="plus" style="width:15px;height:15px"></i>거래 추가</button>
+  </div>
+  <div class="glass" style="padding:24px">
+    <div class="eyebrow">거래 내역</div>
+    <div style="margin-top:8px">
+      ${sorted.length===0 ? `<div style="text-align:center;padding:24px 0;font-size:13px;color:${COLORS.muted}">거래 내역이 없습니다.</div>` :
+        sorted.map(t=>{
+          const tagStyle = t.type==='buy' ? [COLORS.violetSoft,COLORS.violet,'매수'] : t.type==='sell' ? [COLORS.redSoft,COLORS.red,'매도'] : [COLORS.amberSoft,COLORS.amber,'배당'];
+          const detail = t.type==='dividend' ? `${won(t.amount)}` : `${won(t.price)} × ${t.quantity}주`;
+          return `<div class="tx-row">
+            <div style="display:flex;align-items:center;gap:12px;min-width:0">
+              <span class="tx-type-tag mono" style="background:${tagStyle[0]};color:${tagStyle[1]}">${tagStyle[2]}</span>
+              <div style="min-width:0">
+                <div style="font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(nameOf(t.etfId))} <span style="color:${COLORS.muted};font-size:11px">· ${esc(accNameOf(t.accountId))}</span></div>
+                <div class="mono" style="font-size:11px;color:${COLORS.muted}">${t.date} · ${detail}${t.memo?' · '+esc(t.memo):''}</div>
+              </div>
+            </div>
+            <button onclick="deleteTx('${t.id}')" style="flex-shrink:0;margin-left:12px"><i data-lucide="trash-2" style="width:14px;height:14px;color:${COLORS.muted}"></i></button>
+          </div>`;
+        }).join('')}
+    </div>
+  </div>`;
+}
+
+/* ---------------- rebalancing ---------------- */
+function renderRebalancing(d){
+  const rows = d.rebalance;
+  const analysis = rows.map(r=>{
+    if(Math.abs(r.diff) < 0.5) return `${esc(r.name)}: 목표 비중 달성`;
+    const dir = r.diff > 0 ? '높음' : '낮음';
+    return `${esc(r.name)}: 목표보다 ${pct(Math.abs(r.diff),1)} ${dir}`;
+  });
+  return `
+  ${topbar('Rebalancing Center','목표 비중과의 편차를 분석하고 매수/매도 금액을 추천합니다')}
+  ${accountTabs()}
+  <div class="glass" style="padding:24px;margin-bottom:16px">
+    <div class="eyebrow">자동 분석</div>
+    <div style="display:flex;flex-direction:column;gap:6px;margin-top:8px">
+      ${analysis.map(a=>`<div style="font-size:13px;color:${COLORS.text2}">· ${a}</div>`).join('')}
+    </div>
+    <div style="font-size:11px;color:${COLORS.muted};margin-top:10px">리밸런싱 기준: 목표 대비 ±${state.settings.rebalanceThreshold}%p 초과 시 필요로 판단합니다.</div>
+  </div>
+  <div class="glass" style="padding:24px">
+    <div class="eyebrow" style="margin-bottom:10px">추천 매수 / 매도</div>
+    <div class="table-row head"><span>ETF</span><span>목표비중</span><span>현재비중</span><span>차이</span><span>액션</span><span>추천 금액</span></div>
+    ${rows.map(r=>`
+      <div class="table-row">
+        <span class="cell-name">${esc(r.name)}</span>
+        <span class="mono">${r.targetWeight}%</span>
+        <span class="mono">${pct(r.currentWeight,1)}</span>
+        <span class="mono" style="color:${r.diff>0?COLORS.red:COLORS.violet}">${r.diff>=0?'+':''}${pct(r.diff,1)}</span>
+        <span class="badge mono" style="background:${r.action==='buy'?COLORS.violetSoft:r.action==='sell'?COLORS.redSoft:'rgba(255,255,255,.05)'};color:${r.action==='buy'?COLORS.violet:r.action==='sell'?COLORS.red:COLORS.muted};width:fit-content">${r.action==='buy'?'매수':r.action==='sell'?'매도':'유지'}</span>
+        <span class="mono">${r.needsRebalance ? won(r.amount) : '-'}</span>
+      </div>`).join('')}
+  </div>`;
+}
+
+/* ---------------- ETF compare ---------------- */
+function renderCompare(){
+  const cat = state.ui.compareCategory;
+  const rows = ETFProvider.compare(cat);
+  return `
+  ${topbar('ETF Compare','운용사별 상품을 비교합니다 (Mock 데이터)')}
+  <div class="glass" style="padding:20px;margin-bottom:16px">
+    <div class="row-between">
+      <div class="eyebrow" style="margin:0">비교 카테고리</div>
+      <span style="font-size:10px;padding:2px 6px;border-radius:4px;background:rgba(255,255,255,.06);color:${COLORS.muted}">MOCK</span>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+      ${CATEGORIES.map(c=>`<button class="account-tab ${cat===c?'active':''}" onclick="setCompareCategory('${c}')">${c}</button>`).join('')}
+    </div>
+  </div>
+  <div class="glass" style="padding:24px">
+    <div class="compare-row head"><span>운용사</span><span>1년 수익률</span><span>총보수</span><span>순자산(억)</span><span>추적오차</span><span>거래량(만주)</span></div>
+    ${rows.map(r=>{
+      const key = cat+':'+r.manager;
+      return `<div class="compare-row">
+        <span class="cell-name">${r.manager}</span>
+        <span class="mono" style="color:${COLORS.mint}">+${r.return1y}%</span>
+        <span class="mono">${r.expenseRatio}%</span>
+        <span class="mono">${r.aum}</span>
+        <span class="mono">${r.tracking}%</span>
+        <span class="mono">${r.volume}</span>
+      </div>`;
+    }).join('')}
+    <div style="margin-top:16px">
+      <div class="field"><label>메모</label><div class="field-input"><input type="text" placeholder="이 카테고리에 대한 메모" value="${esc(state.compareNotes[cat]||'')}" onchange="onCompareNote('${cat}', this.value)" /></div></div>
+    </div>
+    <div style="font-size:10.5px;color:${COLORS.muted};margin-top:10px">현재는 Mock 데이터입니다. 추후 실제 운용사 API 또는 공시 데이터로 교체할 수 있도록 ETFProvider 레이어로 분리되어 있습니다.</div>
+  </div>`;
+}
+
+/* ---------------- market center ---------------- */
+function renderMarket(){
+  const data = MarketProvider.getSnapshot();
+  return `
+  ${topbar('Market Center','주요 지표 요약 (Mock 데이터)')}
+  <div class="market-grid">
+    ${data.map(m=>`<div class="glass market-card">
+      <div class="mk-label">${m.label}</div>
+      <div class="mk-value mono">${m.value}</div>
+      ${m.change ? `<div class="mk-change mono" style="color:${m.up===true?COLORS.mint:m.up===false?COLORS.red:COLORS.text2}">${m.change}</div>` : ''}
+    </div>`).join('')}
+  </div>
+  <div class="glass" style="padding:20px;margin-top:16px">
+    <div style="font-size:12px;color:${COLORS.muted};line-height:1.6">
+      현재는 Mock 데이터를 표시합니다. MarketProvider 레이어를 통해 나중에 실시간 시세 API(KIS 등)로 교체할 수 있도록 설계되어 있습니다.
+    </div>
+  </div>`;
+}
+
+/* ---------------- watchlist ---------------- */
+function renderWatchlist(){
+  return `
+  ${topbar('Watchlist','관심 ETF를 추적하고 목표가와 비교합니다')}
+  <div class="glass" style="padding:24px;margin-bottom:16px">
+    <div class="eyebrow">관심 ETF 추가</div>
+    <div class="grid" style="grid-template-columns:repeat(2,1fr);gap:12px;margin-top:8px">
+      <div class="field"><label>ETF명</label><div class="field-input"><input id="watch-name" type="text" placeholder="예: SOL 미국배당다우존스" /></div></div>
+      <div class="field"><label>목표가</label><div class="field-input"><input id="watch-target" type="number" placeholder="0" /><span class="field-suffix">원</span></div></div>
+      <div class="field"><label>현재가</label><div class="field-input"><input id="watch-current" type="number" placeholder="0" /><span class="field-suffix">원</span></div></div>
+      <div class="field"><label>메모</label><div class="field-input"><input id="watch-memo" type="text" placeholder="선택" /></div></div>
+    </div>
+    <button class="btn btn-primary" style="margin-top:12px" onclick="addWatchItem()"><i data-lucide="plus" style="width:14px;height:14px"></i>추가</button>
+  </div>
+  <div class="glass" style="padding:24px">
+    <div class="watch-row head"><span>ETF</span><span>목표가</span><span>현재가</span><span>차이</span><span></span></div>
+    ${state.watchlist.length===0 ? `<div style="text-align:center;padding:20px 0;font-size:13px;color:${COLORS.muted}">관심 ETF가 없습니다.</div>` :
+      state.watchlist.map(w=>{
+        const diff = w.targetPrice>0 ? ((w.currentPrice-w.targetPrice)/w.targetPrice)*100 : 0;
+        const buyZone = w.currentPrice <= w.targetPrice;
+        return `<div class="watch-row">
+          <span>${esc(w.name)}${w.memo?`<div style="font-size:10.5px;color:${COLORS.muted}">${esc(w.memo)}</div>`:''}</span>
+          <span class="mono">${won(w.targetPrice)}</span>
+          <span class="mono">${won(w.currentPrice)}</span>
+          <span class="mono" style="color:${buyZone?COLORS.mint:COLORS.amber}">${diff>=0?'+':''}${pct(diff,1)}</span>
+          <button onclick="deleteWatchItem('${w.id}')"><i data-lucide="trash-2" style="width:13px;height:13px;color:${COLORS.muted}"></i></button>
+        </div>`;
+      }).join('')}
+  </div>`;
+}
+
+/* ---------------- calendar ---------------- */
+function typeColor(type){
+  return { buy:COLORS.violet, sell:COLORS.red, dividend:COLORS.amber, rebalance:COLORS.mint, yearend:COLORS.text2 }[type] || COLORS.muted;
+}
+function renderCalendar(){
+  const [y,m] = state.ui.calendarMonth.split('-').map(Number);
+  const first = new Date(y, m-1, 1);
+  const startDow = first.getDay();
+  const daysInMonth = new Date(y, m, 0).getDate();
+  const todayIso = todayStr();
+
+  const txEvents = state.transactions.map(t=>({ date:t.date, type:t.type }));
+  const manualEvents = state.calendarEvents.map(e=>({ date:e.date, type:e.type, id:e.id, title:e.title }));
+  const allEvents = [...txEvents, ...manualEvents];
+
+  let cells = '';
+  for(let i=0;i<startDow;i++) cells += `<div class="cal-cell empty"></div>`;
+  for(let day=1; day<=daysInMonth; day++){
+    const iso = `${y}-${String(m).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+    const dayEvents = allEvents.filter(e=>e.date===iso);
+    const dots = dayEvents.slice(0,4).map(e=>`<span class="cal-dot" style="background:${typeColor(e.type)}"></span>`).join('');
+    cells += `<div class="cal-cell ${iso===todayIso?'today':''}"><div class="cal-daynum">${day}</div><div class="cal-dots">${dots}</div></div>`;
+  }
+
+  const monthEvents = manualEvents.filter(e=>e.date.startsWith(state.ui.calendarMonth)).sort((a,b)=>new Date(a.date)-new Date(b.date));
+  const typeLabel = { buy:'매수', sell:'매도', dividend:'배당', rebalance:'리밸런싱', yearend:'연말점검' };
+
+  return `
+  ${topbar('Investment Calendar','매수·배당·리밸런싱·연말점검 일정을 관리합니다')}
+  <div class="glass" style="padding:24px;margin-bottom:16px">
+    <div class="row-between cal-nav">
+      <button class="btn btn-ghost btn-sm" onclick="calShiftMonth(-1)"><i data-lucide="chevron-left" style="width:14px;height:14px"></i></button>
+      <div style="font-size:15px;font-weight:600" class="font-display">${y}년 ${m}월</div>
+      <button class="btn btn-ghost btn-sm" onclick="calShiftMonth(1)"><i data-lucide="chevron-right" style="width:14px;height:14px"></i></button>
+    </div>
+    <div class="cal-grid">
+      ${['일','월','화','수','목','금','토'].map(d=>`<div class="cal-dow">${d}</div>`).join('')}
+      ${cells}
+    </div>
+    <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:14px;font-size:10.5px;color:${COLORS.muted}">
+      ${Object.entries(typeLabel).map(([k,v])=>`<div style="display:flex;align-items:center;gap:5px"><span class="cal-dot" style="background:${typeColor(k)}"></span>${v}</div>`).join('')}
+    </div>
+  </div>
+  <div class="glass" style="padding:24px;margin-bottom:16px">
+    <div class="eyebrow">이벤트 추가</div>
+    <div class="grid" style="grid-template-columns:repeat(3,1fr);gap:12px;margin-top:8px">
+      <div class="field"><label>날짜</label><div class="field-input"><input id="cal-event-date" type="date" value="${todayStr()}" /></div></div>
+      <div class="field"><label>유형</label><div class="field-input"><select id="cal-event-type"><option value="rebalance">리밸런싱</option><option value="yearend">연말점검</option></select></div></div>
+      <div class="field"><label>제목</label><div class="field-input"><input id="cal-event-title" type="text" placeholder="예: 분기 리밸런싱 점검" /></div></div>
+    </div>
+    <button class="btn btn-primary" style="margin-top:12px" onclick="addCalendarEvent()"><i data-lucide="plus" style="width:14px;height:14px"></i>이벤트 추가</button>
+  </div>
+  <div class="glass" style="padding:24px">
+    <div class="eyebrow">이번 달 이벤트</div>
+    ${monthEvents.length===0 ? `<div style="text-align:center;padding:16px 0;font-size:13px;color:${COLORS.muted}">등록된 이벤트가 없습니다.</div>` :
+      monthEvents.map(e=>`<div class="event-row">
+        <div style="display:flex;align-items:center;gap:8px"><span class="cal-dot" style="background:${typeColor(e.type)}"></span><span>${e.date} · ${esc(e.title)}</span></div>
+        <button onclick="deleteCalendarEvent('${e.id}')"><i data-lucide="trash-2" style="width:13px;height:13px;color:${COLORS.muted}"></i></button>
+      </div>`).join('')}
+  </div>`;
+}
+
+/* ---------------- statistics ---------------- */
+function renderStatistics(d){
+  const buys = d.txs.filter(t=>t.type==='buy');
+  const byMonth = {};
+  buys.forEach(t=>{ const key = t.date.slice(0,7); byMonth[key] = (byMonth[key]||0) + t.price*t.quantity; });
+  const months = Object.keys(byMonth).sort();
+  statsRows = months.map(k=>({ month:k, amount:byMonth[k] }));
+  const realizedPnl = d.holdings.reduce((s,h)=>s+h.realizedPnl,0);
+  const totalDividends = d.holdings.reduce((s,h)=>s+h.totalDividends,0);
+  const cumulativeBuy = d.holdings.reduce((s,h)=>s+h.cumulativeBuy,0);
+
+  return `
+  ${topbar('Statistics','투자 활동을 숫자로 돌아봅니다')}
+  ${accountTabs()}
+  <div class="grid grid-4" style="margin-bottom:16px">
+    ${statCard('누적 투자금', won(cumulativeBuy), 'arrow-left-right', COLORS.violet)}
+    ${statCard('누적 실현손익', won(realizedPnl), 'trending-up', realizedPnl>=0?COLORS.mint:COLORS.red)}
+    ${statCard('누적 배당금', won(totalDividends), 'coins', COLORS.amber)}
+    ${statCard('평균 매수 ETF 수', d.holdings.filter(h=>h.qty>0).length+'개', 'pie-chart', COLORS.mint)}
+  </div>
+  <div class="glass" style="padding:24px;margin-bottom:16px">
+    <div class="eyebrow">월별 · 누적 투자금</div>
+    <div style="position:relative;height:260px;margin-top:8px"><canvas id="stats-canvas"></canvas></div>
+  </div>
+  <div class="glass" style="padding:24px">
+    <div class="eyebrow" style="margin-bottom:10px">ETF별 평균 매수가</div>
+    <div class="table-row head"><span>ETF</span><span>평균단가</span><span>수량</span><span>평가금액</span><span>손익</span><span>배당금</span></div>
+    ${d.holdings.map(h=>`<div class="table-row">
+      <span class="cell-name">${esc(h.name)}</span>
+      <span class="mono">${won(h.avg)}</span>
+      <span class="mono">${h.qty.toLocaleString('ko-KR')}주</span>
+      <span class="mono">${won(h.evalAmount)}</span>
+      <span class="mono" style="color:${h.pnl>=0?COLORS.mint:COLORS.red}">${won(h.pnl)}</span>
+      <span class="mono">${won(h.totalDividends)}</span>
+    </div>`).join('')}
+  </div>
+  `;
+}
+function initStatsChart(){
+  const el = document.getElementById('stats-canvas');
+  if(!el) return;
+  const rows = statsRows;
+  if(statsChart) statsChart.destroy();
+  let cum = 0;
+  const cumSeries = rows.map(r => (cum += r.amount));
+  statsChart = new Chart(el, {
+    data:{
+      labels: rows.map(r=>r.month),
+      datasets:[
+        { type:'bar', label:'월별 투자금', data: rows.map(r=>r.amount), backgroundColor:'rgba(124,111,240,0.55)', borderRadius:6, yAxisID:'y' },
+        { type:'line', label:'누적 투자금', data: cumSeries, borderColor:COLORS.amber, backgroundColor:'transparent', tension:0.3, pointRadius:2, yAxisID:'y1' }
+      ]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{ labels:{ color:COLORS.text2, font:{size:11} } } },
+      scales:{
+        x:{ ticks:{ color:COLORS.text2, font:{size:10} }, grid:{ display:false } },
+        y:{ position:'left', ticks:{ color:COLORS.text2, font:{size:10}, callback:v=>(v/10000).toFixed(0)+'만' }, grid:{ color:'rgba(255,255,255,0.05)' } },
+        y1:{ position:'right', ticks:{ color:COLORS.text2, font:{size:10}, callback:v=>(v/10000).toFixed(0)+'만' }, grid:{ display:false } }
+      }
+    }
+  });
+}
+
+/* ---------------- journal ---------------- */
+function renderJournal(){
+  const q = (state.ui.journalSearch||'').toLowerCase();
+  const filtered = state.journal.filter(e => !q || e.content.toLowerCase().includes(q) || (e.tags||[]).some(t=>t.toLowerCase().includes(q)));
+  const active = state.journal.find(e=>e.id===state.ui.journalActiveId) || state.journal[0];
+  const list = filtered.map(e=>{
+    const isActive = active && e.id===active.id;
+    const excerpt = (e.content.split('\n').find(l=>l.trim()) || '빈 기록');
+    return `<button class="journal-entry-btn ${isActive?'active':''}" onclick="selectJournal('${e.id}')">
+      <div class="journal-date mono">${e.date}</div>
+      <div class="journal-excerpt">${esc(excerpt)}</div>
+      ${(e.tags&&e.tags.length) ? `<div style="margin-top:4px">${e.tags.map(t=>`<span class="tag-chip">#${esc(t)}</span>`).join('')}</div>` : ''}
+    </button>`;
+  }).join('');
+
+  const editorBody = !active ? `<div style="text-align:center;padding:80px 0;font-size:13px;color:${COLORS.muted}">새 기록을 작성해보세요.</div>` :
+    (state.ui.journalPreview
+      ? `<div class="md-preview" style="min-height:360px">${renderMarkdown(active.content)}</div>`
+      : `<textarea id="journal-textarea" oninput="onJournalInput(this.value)" placeholder="# 오늘의 원칙&#10;&#10;마크다운으로 자유롭게 기록하세요...">${esc(active.content)}</textarea>`);
+
+  return `
+  ${topbar('Journal','투자 원칙과 생각을 기록하세요 · 자동 저장')}
+  <div style="display:grid;gap:16px;grid-template-columns:1fr" class="lg-4">
+    <div class="glass" style="padding:16px">
+      <button class="btn btn-soft" style="width:100%;justify-content:center;margin-bottom:10px" onclick="newJournalEntry()"><i data-lucide="plus" style="width:14px;height:14px"></i>새 기록</button>
+      <div class="field-input" style="margin-bottom:10px">
+        <i data-lucide="search" style="width:13px;height:13px;color:${COLORS.muted}"></i>
+        <input type="text" placeholder="검색 (내용, 태그)" value="${esc(state.ui.journalSearch||'')}" oninput="onJournalSearch(this.value)" style="font-size:12.5px" />
+      </div>
+      <div style="max-height:440px;overflow-y:auto">${list || `<div style="text-align:center;padding:16px 0;font-size:12px;color:${COLORS.muted}">검색 결과 없음</div>`}</div>
+    </div>
+    <div class="glass" style="padding:24px">
+      ${active ? `
+      <div class="row-between" style="margin-bottom:10px">
+        <span class="mono" style="font-size:12px;color:${COLORS.muted}">${active.date}</span>
+        <div style="display:flex;align-items:center;gap:8px">
+          <button onclick="toggleJournalPreview()" style="font-size:12px;padding:6px 12px;border-radius:8px;background:${state.ui.journalPreview?COLORS.violetSoft:'rgba(255,255,255,.04)'};color:${state.ui.journalPreview?COLORS.violet:COLORS.text2}">${state.ui.journalPreview?'편집':'미리보기'}</button>
+          <button onclick="deleteJournal('${active.id}')"><i data-lucide="trash-2" style="width:14px;height:14px;color:${COLORS.muted}"></i></button>
+        </div>
+      </div>
+      <div class="field-input" style="margin-bottom:14px">
+        <i data-lucide="tag" style="width:13px;height:13px;color:${COLORS.muted}"></i>
+        <input type="text" placeholder="태그 (쉼표로 구분, 예: 원칙, 리밸런싱)" value="${esc((active.tags||[]).join(', '))}" onchange="onJournalTags(this.value)" style="font-size:12.5px" />
+      </div>` : ''}
+      ${editorBody}
+    </div>
+  </div>`;
+}
+
+/* ---------------- retirement ---------------- */
+function renderRetirement(d){
+  const s = state.settings;
+  const milestoneAges = [60,65,70,75].filter(a=>a>s.currentAge);
+  const maxAge = Math.max(...milestoneAges, s.targetRetireAge, s.currentAge+1);
+  const series = computeRetirementSeries(s, d.totalAssets, maxAge);
+  return `
+  ${topbar('Retirement','복리로 계산한 연령대별 예상 자산')}
+  <div class="grid grid-4" style="margin-bottom:16px">
+    ${statCard('현재 자산', won(d.totalAssets), 'wallet', COLORS.violet)}
+    <div class="glass stat-card">
+      <div class="stat-top"><div class="eyebrow">은퇴 나이</div><div class="icon-badge" style="background:${COLORS.mint}22"><i data-lucide="landmark" style="width:15px;height:15px;color:${COLORS.mint}"></i></div></div>
+      <div class="stat-value mono">${editableValue(s.targetRetireAge, s.targetRetireAge+'세', `updateSettingField('targetRetireAge', this.value)`, {step:1, width:'70px'})}</div>
+    </div>
+    <div class="glass stat-card">
+      <div class="stat-top"><div class="eyebrow">예상 수익률(연)</div><div class="icon-badge" style="background:${COLORS.amber}22"><i data-lucide="trending-up" style="width:15px;height:15px;color:${COLORS.amber}"></i></div></div>
+      <div class="stat-value mono">${editableValue(s.expectedReturn, s.expectedReturn+'%', `updateSettingField('expectedReturn', this.value)`, {step:0.5, width:'70px'})}</div>
+    </div>
+    ${statCard('목표 자산', won(s.targetAsset), 'flag', COLORS.text2)}
+  </div>
+  <div class="glass" style="padding:24px;margin-bottom:16px">
+    <div class="eyebrow">복리 계산</div>
+    <div style="font-size:15px;font-weight:500;margin-bottom:14px">연령대별 예상 자산 &amp; 예상 월 연금 (4% 인출 기준)</div>
+    <div class="grid grid-4">
+      ${milestoneAges.map(age=>{
+        const val = valueAtAge(series, age);
+        const monthlyPension = Math.round(val*0.04/12);
+        const achieved = val >= s.targetAsset;
+        return `<div class="glass" style="padding:16px;background:rgba(255,255,255,.02)">
+          <div style="font-size:12px;color:${COLORS.muted}">${age}세</div>
+          <div class="mono" style="font-size:16px;font-weight:700;margin-top:4px;color:${achieved?COLORS.mint:COLORS.text}">${won(val)}</div>
+          <div style="font-size:10.5px;color:${COLORS.muted};margin-top:6px">예상 월 연금</div>
+          <div class="mono" style="font-size:13px;color:${COLORS.violet}">${won(monthlyPension)}</div>
+        </div>`;
+      }).join('')}
+    </div>
+    <div style="position:relative;height:240px;margin-top:18px"><canvas id="retire-canvas"></canvas></div>
+    <div style="font-size:10.5px;color:${COLORS.muted};margin-top:8px">Edit 모드에서 은퇴 나이·예상 수익률을 이 페이지에서 바로 수정할 수 있습니다. 현재 나이·월 투자금은 Settings에서 수정합니다. 이 계산은 단순 복리 추정치이며 실제 수익률은 변동합니다.</div>
+  </div>`;
+}
+function initRetireChart(totalAssets){
+  const el = document.getElementById('retire-canvas');
+  if(!el) return;
+  if(retireChart) retireChart.destroy();
+  const s = state.settings;
+  const milestoneAges = [60,65,70,75].filter(a=>a>s.currentAge);
+  const maxAge = Math.max(...milestoneAges, s.targetRetireAge, s.currentAge+1);
+  const series = computeRetirementSeries(s, totalAssets, maxAge);
+  retireChart = new Chart(el, {
+    type:'line',
+    data:{ labels:series.map(p=>p.age+'세'), datasets:[{ data:series.map(p=>p.value), borderColor:COLORS.violet, backgroundColor:'rgba(124,111,240,0.15)', fill:true, tension:0.3, pointRadius:0, borderWidth:2 }] },
+    options:{
+      responsive:true, maintainAspectRatio:false, plugins:{ legend:{display:false} },
+      scales:{
+        x:{ ticks:{ color:COLORS.text2, font:{size:10}, maxTicksLimit:10 }, grid:{ color:'rgba(255,255,255,0.05)' } },
+        y:{ ticks:{ color:COLORS.text2, font:{size:10}, callback:(v)=> (v/100000000).toFixed(1)+'억' }, grid:{ color:'rgba(255,255,255,0.05)' } }
+      }
+    }
+  });
+}
+
+/* ---------------- settings ---------------- */
+function renderSettings(d){
+  const weightSum = state.etfs.reduce((s,h)=>s+h.targetWeight,0);
+  return `
+  ${topbar('Settings','Atlas의 기준값을 관리합니다')}
+  <div class="glass" style="padding:24px;margin-bottom:16px">
+    <div class="eyebrow">계좌 관리</div>
+    <div style="font-size:15px;font-weight:500;margin-bottom:14px">Account Overview</div>
+    <div class="grid grid-3">
+      ${state.accounts.map(a=>`<div class="field">
+        <label>${esc(a.name)} (${esc(a.broker)}) — 예수금</label>
+        <div class="field-input"><input type="number" class="mono" value="${a.cash}" onchange="updateAccountCash('${a.id}', this.value)" /><span class="field-suffix">원</span></div>
+      </div>`).join('')}
+    </div>
+  </div>
+
+  <div class="grid grid-2" style="margin-bottom:16px">
+    <div class="glass" style="padding:24px">
+      <div class="eyebrow">자산 &amp; 은퇴</div>
+      <div style="font-size:15px;font-weight:500;margin-bottom:16px">기본 정보</div>
+      <div style="display:flex;flex-direction:column;gap:14px">
+        <div>
+          <div style="font-size:12px;color:${COLORS.text2};margin-bottom:6px">총자산 (자동 계산, 전체 계좌 합산)</div>
+          <div class="mono" style="border:1px solid var(--panel-border);border-radius:12px;padding:10px 12px;font-size:15px;color:${COLORS.muted};background:rgba(255,255,255,.015)">${won(getDerived('all').totalAssets)}</div>
+        </div>
+        <div class="field"><label>현재 나이</label><div class="field-input"><input type="number" class="mono" value="${state.settings.currentAge}" onchange="updateSettingField('currentAge', this.value)" /><span class="field-suffix">세</span></div></div>
+        <div class="field"><label>은퇴 나이</label><div class="field-input"><input type="number" class="mono" value="${state.settings.targetRetireAge}" onchange="updateSettingField('targetRetireAge', this.value)" /><span class="field-suffix">세</span></div></div>
+        <div class="field"><label>목표 자산</label><div class="field-input"><input type="number" class="mono" value="${state.settings.targetAsset}" onchange="updateSettingField('targetAsset', this.value)" /><span class="field-suffix">원</span></div></div>
+        <div class="field"><label>예상 수익률(연)</label><div class="field-input"><input type="number" class="mono" value="${state.settings.expectedReturn}" onchange="updateSettingField('expectedReturn', this.value)" /><span class="field-suffix">%</span></div></div>
+        <div class="field"><label>월 투자금 (은퇴 계산용)</label><div class="field-input"><input type="number" class="mono" value="${state.settings.monthlyContribution}" onchange="updateSettingField('monthlyContribution', this.value)" /><span class="field-suffix">원</span></div></div>
+      </div>
+    </div>
+
+    <div class="glass" style="padding:24px">
+      <div class="row-between" style="margin-bottom:4px">
+        <div class="eyebrow" style="margin:0">목표 비중 &amp; 계획</div>
+        <span id="weight-sum-badge" class="badge mono" style="background:${weightSum===100?COLORS.mintSoft:COLORS.redSoft};color:${weightSum===100?COLORS.mint:COLORS.red}">합계 ${weightSum}%</span>
+      </div>
+      <div style="font-size:15px;font-weight:500;margin-bottom:16px">자산별 목표 비중 (전 계좌 공통)</div>
+      <div style="display:flex;flex-direction:column;gap:18px;margin-bottom:18px">
+        ${state.etfs.map(h=>`
+          <div>
+            <div class="row-between" style="margin-bottom:6px"><span style="font-size:13px;color:${COLORS.text2}">${esc(h.name)}</span><span id="weight-label-${h.id}" class="mono" style="font-size:13px">${h.targetWeight}%</span></div>
+            <input type="range" min="0" max="100" value="${h.targetWeight}" oninput="onWeightInput('${h.id}', this.value)" onchange="onWeightChange()" style="accent-color:${h.color}" />
+          </div>`).join('')}
+        <div id="weight-warn" style="font-size:11.5px;color:${COLORS.red};display:${weightSum===100?'none':'block'}">목표 비중의 합이 100%가 되도록 조정하세요.</div>
+      </div>
+      <div class="divider" style="margin:16px 0"></div>
+      <div style="display:flex;flex-direction:column;gap:14px">
+        <div class="field"><label>리밸런싱 기준 (허용 편차)</label><div class="field-input"><input type="number" class="mono" value="${state.settings.rebalanceThreshold}" onchange="updateSettingField('rebalanceThreshold', this.value)" /><span class="field-suffix">%p</span></div></div>
+        <div class="field"><label>투자 계획 개월 수</label><div class="field-input"><input type="number" class="mono" value="${state.settings.planMonths}" onchange="updateSettingField('planMonths', this.value)" /><span class="field-suffix">개월</span></div></div>
+        <div class="field"><label>투자 계획 시작일</label><div class="field-input"><input type="date" value="${state.settings.planStartDate}" onchange="updateSettingField('planStartDate', this.value)" /></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="glass" style="padding:24px;margin-bottom:16px">
+    <div class="eyebrow">ETF Master</div>
+    <div style="font-size:15px;font-weight:500;margin-bottom:16px">보유 ETF 상세 관리</div>
+    ${state.etfs.map(h=>`
+      <div class="etfmaster-row">
+        <div class="row-between" style="margin-bottom:10px">
+          <div style="display:flex;align-items:center;gap:8px">
+            <input type="color" value="${h.color}" onchange="updateEtfField('${h.id}','color',this.value);commitEtfField()" />
+            <span style="font-size:13.5px;font-weight:600">${esc(h.name)}</span>
+          </div>
+          <button class="btn btn-danger btn-sm" onclick="deleteEtf('${h.id}')"><i data-lucide="trash-2" style="width:12px;height:12px"></i>삭제</button>
+        </div>
+        <div class="etfmaster-grid">
+          <div class="field"><label>ETF명</label><div class="field-input"><input type="text" value="${esc(h.name)}" onchange="updateEtfField('${h.id}','name',this.value);commitEtfField()" /></div></div>
+          <div class="field"><label>운용사</label><div class="field-input"><select onchange="updateEtfField('${h.id}','manager',this.value);commitEtfField()">${MANAGERS.map(m=>`<option value="${m}" ${h.manager===m?'selected':''}>${m}</option>`).join('')}</select></div></div>
+          <div class="field"><label>ETF 종류</label><div class="field-input"><select onchange="updateEtfField('${h.id}','category',this.value);commitEtfField()">${CATEGORIES.map(c=>`<option value="${c}" ${h.category===c?'selected':''}>${c}</option>`).join('')}</select></div></div>
+          <div class="field"><label>목표 비중</label><div class="field-input"><input type="number" class="mono" value="${h.targetWeight}" onchange="updateEtfField('${h.id}','targetWeight',this.value);commitEtfField()" /><span class="field-suffix">%</span></div></div>
+          <div class="field"><label>현재가</label><div class="field-input"><input type="number" class="mono" value="${h.currentPrice}" onchange="updateEtfField('${h.id}','currentPrice',this.value);commitEtfField()" /><span class="field-suffix">원</span></div></div>
+          <div class="field"><label>총보수</label><div class="field-input"><input type="number" step="0.01" class="mono" value="${h.expenseRatio||0}" onchange="updateEtfField('${h.id}','expenseRatio',this.value);commitEtfField()" /><span class="field-suffix">%</span></div></div>
+          <div class="field"><label>자산군</label><div class="field-input"><select onchange="updateEtfField('${h.id}','assetClass',this.value);commitEtfField()">
+            <option value="equity" ${h.assetClass==='equity'?'selected':''}>주식</option>
+            <option value="bond" ${h.assetClass==='bond'?'selected':''}>채권</option>
+          </select></div></div>
+          <div class="field" style="grid-column:span 2"><label>투자 이유</label><div class="field-input"><input type="text" value="${esc(h.reason||'')}" onchange="updateEtfField('${h.id}','reason',this.value);commitEtfField()" /></div></div>
+          <div class="field" style="grid-column:1/-1"><label>메모</label><div class="field-input"><input type="text" value="${esc(h.memo||'')}" onchange="updateEtfField('${h.id}','memo',this.value);commitEtfField()" /></div></div>
+        </div>
+      </div>`).join('')}
+    ${state.ui.etfAddOpen ? etfAddForm() : `<button class="btn btn-soft" onclick="toggleEtfAdd()"><i data-lucide="plus" style="width:14px;height:14px"></i>ETF 추가</button>`}
+  </div>
+
+  <div class="glass" style="padding:24px">
+    <div class="eyebrow">데이터</div>
+    <div style="font-size:15px;font-weight:500;margin-bottom:14px">백업 &amp; 복원</div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <button class="btn btn-soft" onclick="exportJson()"><i data-lucide="download" style="width:14px;height:14px"></i>전체 백업 (JSON)</button>
+      <label class="btn btn-ghost" style="cursor:pointer">
+        <i data-lucide="upload" style="width:14px;height:14px"></i>전체 복원 (JSON)
+        <input type="file" accept="application/json" style="display:none" onchange="importJson(this)" />
+      </label>
+      <button class="btn btn-ghost" onclick="exportCsv()"><i data-lucide="file-spreadsheet" style="width:14px;height:14px"></i>거래내역 CSV</button>
+    </div>
+    <div style="font-size:10.5px;color:${COLORS.muted};margin-top:10px">모든 데이터는 이 브라우저의 localStorage에 자동 저장됩니다. 기기를 바꾸거나 브라우저 데이터를 정리하기 전에는 꼭 내보내기를 해두세요.</div>
+  </div>
+  `;
+}
+
+/* ---------------- boot ---------------- */
+render();
+</script>
+</body>
+</html>
